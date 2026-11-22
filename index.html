@@ -283,6 +283,8 @@ let width, height, scale, offset, viewHeight;
 let player, platforms, lastHeight, level, flightIndex, stepIndex, camera, best, sparks;
 let cheeseBag = [];
 const MAX_PLATFORM_IMAGE_HEIGHT = 100;
+const PAIRED_CHEDDAR_IMAGE_HEIGHT = 124;
+const PAIRED_CHEDDAR_MIN_WIDTH = 100;
 const CHEESES_PER_NOTE = 3;
 // Each photo has a 48 by 48 alpha mask packed one pixel per bit.
 const CHEESE_MASK_DATA = {
@@ -366,10 +368,9 @@ function nextCheesePhoto(level) {
   return cheeseBag.pop();
 }
 
-function createPlatform(x, w, h, level, photo = nextCheesePhoto(level)) {
+function createPlatform(x, w, h, level, photo = nextCheesePhoto(level), maxHeight = MAX_PLATFORM_IMAGE_HEIGHT) {
   const jitter = level > 0 ? (Math.random() - .5) * 16 : 0;
-  const maxHeight = level === 0 ? 144 : MAX_PLATFORM_IMAGE_HEIGHT;
-  const width = Math.min(w, maxHeight / photo.aspect);
+  const width = Math.min(w, (level === 0 ? 144 : maxHeight) / photo.aspect);
   const imageHeight = width * photo.aspect;
   const imageTop = h + imageHeight * photo.surface;
   const note = cheeseNotes.find(note => note.photos.includes(photo));
@@ -426,12 +427,13 @@ function makeCaptionSpace(platform, neighbors) {
 
   // Prefer a small adjustment to the third cheese. Only resize its neighbors if needed.
   for (const factor of [.96, .90, .82, .72, .60, .46]) {
-    const candidate = scaled(platform, factor);
+    const candidate = scaled(platform, platform.wideCheddarCaption ? Math.max(factor, PAIRED_CHEDDAR_MIN_WIDTH / platform.w) : factor);
     if (!neighbors.some(other => cheeseImagesOverlap(candidate, other))) {
       Object.assign(platform, candidate);
       return true;
     }
-    const smallerNeighbors = new Map(touching.map(other => [other, scaled(other, factor)]));
+    const smallerNeighbors = new Map(touching.map(other => [other, scaled(other,
+      other.wideCheddarCaption ? Math.max(factor, PAIRED_CHEDDAR_MIN_WIDTH / other.w) : factor)]));
     if (!neighbors.some(other => cheeseImagesOverlap(candidate, smallerNeighbors.get(other) || other))) {
       Object.assign(platform, candidate);
       for (const [other, smaller] of smallerNeighbors) Object.assign(other, smaller);
@@ -454,14 +456,14 @@ function addPlatforms() {
     }
   }
   // New platforms are higher than lastHeight, but their images can extend below it.
-  const settledImageTop = lastHeight - MAX_PLATFORM_IMAGE_HEIGHT;
+  const settledImageTop = lastHeight - PAIRED_CHEDDAR_IMAGE_HEIGHT;
   for (const platform of platforms) {
     if (platform.noteLines === undefined && platform.imageTop <= settledImageTop) {
       const group = platform.noteGroup;
       platform.noteLines = null;
       if (!group || group.shown) continue;
       const neighbors = platforms.filter(other => other !== platform);
-      const fits = platform.endsNoteGroup ? makeCaptionSpace(platform, neighbors) :
+      const fits = platform.endsNoteGroup || platform.wideCheddarCaption ? makeCaptionSpace(platform, neighbors) :
         !neighbors.some(other => cheeseImagesOverlap(platform, other));
       if (!fits) continue;
       platform.noteLines = group.lines;
@@ -473,10 +475,11 @@ function addPlatforms() {
 function addStepPlatforms(step) {
   if (level > LAST_STARTING_CHEDDAR_STEP && level <= LAST_STACKED_CHEDDAR_STEP) {
     const center = Math.max(.40, Math.min(.60, step.x));
-    platforms.push(
-      createPlatform((center - .115) * WIDTH, .38 * WIDTH, lastHeight, level, STACKED_CHEDDAR),
-      createPlatform((center + .115) * WIDTH, .38 * WIDTH, lastHeight, level, STACKED_CHEDDAR),
-    );
+    const large = createPlatform((center - .13) * WIDTH, .37 * WIDTH, lastHeight, level, STACKED_CHEDDAR, PAIRED_CHEDDAR_IMAGE_HEIGHT);
+    const small = createPlatform((center + .155) * WIDTH, .205 * WIDTH, lastHeight, level, STACKED_CHEDDAR);
+    large.wideCheddarCaption = true;
+    small.noteLines = null;
+    platforms.push(large, small);
     return;
   }
 
@@ -991,12 +994,13 @@ function drawPlatform(platform) {
     ctx.drawImage(image,x,top,platform.w,h);
   }
   if (platform.noteLines) {
-    drawCheeseNote(platform.noteLines, platform.x, top + h / 2, platform.w, h);
+    drawCheeseNote(platform.noteLines, platform.x, top + h / 2, platform.w, h, platform.wideCheddarCaption);
   }
 }
 
-function drawCheeseNote(lines, x, y, cheeseWidth, cheeseHeight) {
-  const fontSize = Math.min(15, cheeseWidth / 9.5, (cheeseHeight - 8) / (lines.length * 1.18));
+function drawCheeseNote(lines, x, y, cheeseWidth, cheeseHeight, largeCaption) {
+  const fontSize = Math.min(largeCaption ? 17 : 15, cheeseWidth / (largeCaption ? 7.5 : 9.5),
+    (cheeseHeight - 8) / (lines.length * 1.18));
   const lineHeight = fontSize * 1.18;
   const firstLineY = y - (lines.length - 1) * lineHeight / 2;
   ctx.save();
