@@ -339,7 +339,22 @@ function createPlatform(x, w, h, level) {
   const photo = nextCheesePhoto(level);
   const maxHeight = level === 0 ? 144 : 100;
   const width = Math.min(w, maxHeight / photo.aspect);
-  return {x: x + jitter, w: width, h, level, photo, noteLines: selectCheeseNote(photo)};
+  const imageHeight = width * photo.aspect;
+  const imageTop = h + imageHeight * photo.surface;
+  return {x: x + jitter, w: width, h, level, photo, imageHeight, imageTop, noteLines: selectCheeseNote(photo)};
+}
+
+function addPlatform(platform) {
+  for (const neighbor of platforms) {
+    const overlapsAcross = Math.abs(platform.x - neighbor.x) < (platform.w + neighbor.w) / 2;
+    const overlapsUpward = platform.imageTop > neighbor.imageTop - neighbor.imageHeight &&
+      neighbor.imageTop > platform.imageTop - platform.imageHeight;
+    if (overlapsAcross && overlapsUpward) {
+      platform.noteLines = null;
+      neighbor.noteLines = null;
+    }
+  }
+  platforms.push(platform);
 }
 
 function selectCheeseNote(photo) {
@@ -358,9 +373,9 @@ function addPlatforms() {
     level += 1;
     if (step.extra) {
       const extra = step.extra;
-      platforms.push(createPlatform(extra.x * WIDTH, extra.w * WIDTH, lastHeight - extra.below, level));
+      addPlatform(createPlatform(extra.x * WIDTH, extra.w * WIDTH, lastHeight - extra.below, level));
     }
-    platforms.push(createPlatform(step.x * WIDTH, step.w * WIDTH, lastHeight, level));
+    addPlatform(createPlatform(step.x * WIDTH, step.w * WIDTH, lastHeight, level));
     if (stepIndex === flight.length) {
       stepIndex = 0;
       flightIndex = (flightIndex + 1) % flights.length;
@@ -843,8 +858,8 @@ function drawPlatform(platform) {
   const x = platform.x - platform.w / 2;
   const y = screenY(platform.h);
   if (y < -170 || y > viewHeight + 135) return;
-  const h = platform.w * photo.aspect;
-  const top = y - h * photo.surface;
+  const h = platform.imageHeight;
+  const top = screenY(platform.imageTop);
   if (photo.rotated) {
     ctx.save();
     ctx.translate(platform.x, top + h / 2);
