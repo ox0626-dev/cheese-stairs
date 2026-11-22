@@ -49,7 +49,7 @@
   .stage{grid-row:2}
   .jump-hint,.message{grid-row:3;justify-self:center}
   .jump-hint{max-width:100%;font-size:12px;font-weight:750;text-align:center;background:#0b3058dc;color:#ffee9b;border:1px solid #a9d7ff68;border-radius:30px;padding:8px 9px;pointer-events:none}
-  .play-tip{position:absolute;z-index:2;top:calc(92px + env(safe-area-inset-top,0px));inset-inline:16px;width:max-content;max-width:calc(100% - 32px);margin:0 auto;padding:9px 13px;border:1px solid #a9d7ff7d;border-radius:18px;background:#0c2c52ed;color:#ffea87;text-align:center;font-size:14px;font-weight:750;pointer-events:none}
+  .play-tip{position:absolute;z-index:2;top:calc(clamp(115px,22%,185px) + env(safe-area-inset-top,0px));inset-inline:16px;width:max-content;max-width:calc(100% - 32px);margin:0 auto;padding:12px 16px;border:1px solid #ffe487a6;border-radius:18px;background:#0a2446f5;color:#fff2a8;text-align:center;font-size:clamp(19px,4vw,25px);line-height:1.35;font-weight:850;word-break:keep-all;overflow-wrap:anywhere;pointer-events:none}
   .message{display:flex;flex-direction:column;width:min(350px,100%);max-height:min(480px,calc(var(--game-height) * .56));text-align:center;padding:15px;background:#0c2c52f2;border:1px solid #a9d7ff7d;border-radius:24px;box-shadow:0 8px 22px #0b284b4d}
   .message-content{min-height:0;overflow:auto;overscroll-behavior:contain}
   .message-actions{display:flex;gap:8px;flex:none}
@@ -190,7 +190,10 @@ const EDGE = 64;
 const START = 170;
 const SOLE_INSET = 4;
 const CAMERA_SPEED = 19;
-const MAX_STEP_GAP = 126;
+const MAX_STEP_GAP = 112;
+const MAX_GRUYERE_STEP_GAP = 108;
+const MAX_PLATFORM_SHIFT = 138;
+const STACKED_CHEDDAR_GAP = 102;
 const MUSIC_START_TIME = 12;
 const CHEESE_TIP_START = 3;
 const CHEESE_TIP_DURATION = 2.5;
@@ -320,7 +323,7 @@ let cheeseBag = [];
 let emmentalBag = [];
 const PLATFORM_WIDTH = 150;
 const EXTRA_PLATFORM_WIDTH = 140;
-const STACKED_CHEDDAR_WIDTH = 174;
+const STACKED_CHEDDAR_WIDTH = 116;
 const START_PLATFORM_WIDTH = 176;
 const PLATFORM_IMAGE_REACH = START_PLATFORM_WIDTH * Math.max(...CHEESE_PHOTOS.map(photo => photo.aspect));
 const CHEESES_PER_NOTE = 3;
@@ -427,8 +430,7 @@ function shuffledCheesePhotos(photos) {
 }
 
 function createPlatform(x, w, h, level, photo = nextCheesePhoto(level)) {
-  const jitter = level > 0 ? (Math.random() - .5) * 16 : 0;
-  const center = Math.max(w / 2, Math.min(WIDTH - w / 2, x + jitter));
+  const center = Math.max(w / 2, Math.min(WIDTH - w / 2, x));
   const imageHeight = w * photo.aspect;
   const imageTop = h + imageHeight * photo.surface;
   const note = cheeseNotes.find(note => note.photos.includes(photo));
@@ -475,22 +477,23 @@ function cheeseImagesOverlap(first, second) {
 
 function resizeCheese(cheese, width) {
   const factor = width / cheese.w;
-  const x = Math.max(width / 2, Math.min(WIDTH - width / 2, cheese.x));
   return {
-    ...cheese, x, w: width,
+    ...cheese, w: width,
     imageHeight: cheese.imageHeight * factor,
     imageTop: cheese.h + (cheese.imageTop - cheese.h) * factor,
   };
 }
 
 function makeCaptionSpace(platform, neighbors) {
-  const offsets = [0, -18, 18, -30, 30];
+  // Keep landing positions stable even when a nearby cheese needs space for a caption.
+  const offsets = platform.extra ? [0, -18, 18, -30, 30] : [0];
   for (const offset of offsets) {
-    const candidate = resizeCheese({...platform, x: platform.x + offset}, platform.w);
+    const x = Math.max(platform.w / 2, Math.min(WIDTH - platform.w / 2, platform.x + offset));
+    const candidate = {...platform, x};
     const touching = neighbors.filter(other => cheeseImagesOverlap(candidate, other));
     if (touching.some(other => other.noteLines)) continue;
     const adjusted = new Map(touching.map(other => [other, resizeCheese(other,
-      other.wideCheddarCaption ? other.w : Math.min(other.w, 132))]));
+      Math.min(other.w, 132))]));
     if (neighbors.some(other => cheeseImagesOverlap(candidate, adjusted.get(other) || other))) continue;
     if ([...adjusted.entries()].some(([other, resized]) =>
       neighbors.some(captioned => captioned !== other && captioned.noteLines && cheeseImagesOverlap(resized, captioned)))) continue;
@@ -508,7 +511,9 @@ function addPlatforms() {
     level += 1;
     const stackedCheddar = level > LAST_STARTING_CHEDDAR_STEP && level <= LAST_STACKED_CHEDDAR_STEP;
     const extraGap = 8 + Math.max(0, Math.min(8, level - LAST_STACKED_CHEDDAR_STEP - 1));
-    lastHeight += stackedCheddar ? Math.min(step.gap + extraGap, 80) : Math.min(step.gap + extraGap, MAX_STEP_GAP);
+    const gruyere = level > LAST_EMMENTAL_STEP && level <= LAST_GRUYERE_STEP;
+    const maxGap = gruyere ? MAX_GRUYERE_STEP_GAP : MAX_STEP_GAP;
+    lastHeight += stackedCheddar ? STACKED_CHEDDAR_GAP : Math.min(step.gap + extraGap, maxGap);
     addStepPlatforms(step);
     if (stepIndex === flight.length) {
       stepIndex = 0;
@@ -534,14 +539,17 @@ function addPlatforms() {
 
 function addStepPlatforms(step) {
   if (level > LAST_STARTING_CHEDDAR_STEP && level <= LAST_STACKED_CHEDDAR_STEP) {
-    const x = (level === LAST_STARTING_CHEDDAR_STEP + 1 ? .62 : level % 2 === 0 ? .70 : .30) * WIDTH;
-    const cheddar = createPlatform(x, STACKED_CHEDDAR_WIDTH, lastHeight, level, STACKED_CHEDDAR);
-    cheddar.wideCheddarCaption = true;
-    platforms.push(cheddar);
+    const x = (level % 2 === 0 ? .67 : .33) * WIDTH;
+    platforms.push(createPlatform(x, STACKED_CHEDDAR_WIDTH, lastHeight, level, STACKED_CHEDDAR));
     return;
   }
 
   const photo = nextCheesePhoto(level);
+  const previousX = platforms.at(-1).x;
+  const targetX = (level === LAST_STACKED_CHEDDAR_STEP + 1 ? .47 : step.x) * WIDTH
+    + (Math.random() - .5) * 16;
+  const x = Math.max(previousX - MAX_PLATFORM_SHIFT, Math.min(previousX + MAX_PLATFORM_SHIFT, targetX));
+  const main = createPlatform(x, PLATFORM_WIDTH, lastHeight, level, photo);
   const extra = step.extra;
   if (extra && photo !== STACKED_CHEDDAR) {
     const extraPhoto = nextCheesePhoto(level);
@@ -549,11 +557,13 @@ function addStepPlatforms(step) {
       // Save the stacked cheddar for the next step, where it can appear alone.
       cheeseBag.push(extraPhoto);
     } else {
-      platforms.push(createPlatform(extra.x * WIDTH, EXTRA_PLATFORM_WIDTH, lastHeight - extra.below, level, extraPhoto));
+      const extraX = Math.max(main.x - MAX_PLATFORM_SHIFT, Math.min(main.x + MAX_PLATFORM_SHIFT, extra.x * WIDTH));
+      const side = createPlatform(extraX, EXTRA_PLATFORM_WIDTH, lastHeight - extra.below, level, extraPhoto);
+      side.extra = true;
+      platforms.push(side);
     }
   }
-  const x = level === LAST_STACKED_CHEDDAR_STEP + 1 ? .47 : step.x;
-  platforms.push(createPlatform(x * WIDTH, PLATFORM_WIDTH, lastHeight, level, photo));
+  platforms.push(main);
 }
 
 function resize() {
