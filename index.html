@@ -144,7 +144,10 @@ function createPlatform(x, w, h, level) {
     }
   }
   const jitter = level > 0 ? (Math.random() - .5) * 16 : 0;
-  return {x: x + jitter, w, h, level, photo: cheeseBag.pop()};
+  const photo = cheeseBag.pop();
+  const maxHeight = level === 0 ? 144 : 100;
+  const width = Math.min(w, maxHeight / photo.aspect);
+  return {x: x + jitter, w: width, h, level, photo};
 }
 
 function addPlatforms() {
@@ -398,7 +401,7 @@ function drawPlatform(platform) {
   const x = platform.x - platform.w / 2;
   const y = screenY(platform.h);
   if (y < -170 || y > viewHeight + 135) return;
-  const h = Math.min(platform.level === 0 ? 90 : 62, Math.max(38, platform.w * photo.aspect * .76));
+  const h = platform.w * photo.aspect;
   const top = y - h * photo.surface;
   if (photo.rotated) {
     ctx.save();
