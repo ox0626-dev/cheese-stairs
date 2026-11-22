@@ -139,6 +139,12 @@ const CHEDDAR_NOTE_LINES = [
   '형태를 띈다.',
 ];
 const STACKED_CHEDDAR = CHEESE_PHOTOS.find(photo => photo.sprite === 'cheesePhoto13');
+const STACKED_CHEDDAR_NOTE_LINES = [
+  '<겹겹이 쌓아',
+  '20겹으로 만든',
+  '체다치즈>',
+  '500원*20장=10,000원',
+];
 const LAST_STACKED_CHEDDAR_STEP = 10;
 const HOLEY_CHEESE = ['cheesePhoto1', 'cheesePhoto7', 'cheesePhoto11', 'cheesePhoto14']
   .map(sprite => CHEESE_PHOTOS.find(photo => photo.sprite === sprite));
@@ -183,15 +189,16 @@ const flights = [
 let width, height, scale, offset, viewHeight;
 let player, platforms, lastHeight, level, flightIndex, stepIndex, camera, best, sparks;
 let cheeseBag = [];
-let cheddarNoteCount = 0;
-let cheddarNoteSlot = 0;
+const cheddarNote = {lines: CHEDDAR_NOTE_LINES, count: 0, slot: 0};
+const stackedCheddarNote = {lines: STACKED_CHEDDAR_NOTE_LINES, count: 0, slot: 0};
 let mode = 'ready';
 let elapsed = 0;
 let audioContext;
 
 function reset() {
   cheeseBag = [];
-  cheddarNoteCount = 0;
+  cheddarNote.count = 0;
+  stackedCheddarNote.count = 0;
   const base = createPlatform(195,314,START,0);
   player = {
     x:133,h:START,vy:0,dir:1,ground:base,push:0,runDistance:0,air:0,coyote:0,buffer:0,jumpDir:1,
@@ -242,14 +249,16 @@ function createPlatform(x, w, h, level) {
   const photo = nextCheesePhoto(level);
   const maxHeight = level === 0 ? 144 : 100;
   const width = Math.min(w, maxHeight / photo.aspect);
-  return {x: x + jitter, w: width, h, level, photo, cheddarNote: selectCheddarNote(photo)};
+  return {x: x + jitter, w: width, h, level, photo, noteLines: selectCheeseNote(photo)};
 }
 
-function selectCheddarNote(photo) {
-  if (!STARTING_CHEDDAR.includes(photo)) return false;
-  const slot = cheddarNoteCount++ % 3;
-  if (slot === 0) cheddarNoteSlot = Math.floor(Math.random() * 3);
-  return slot === cheddarNoteSlot;
+function selectCheeseNote(photo) {
+  const note = photo === STACKED_CHEDDAR ? stackedCheddarNote :
+    STARTING_CHEDDAR.includes(photo) ? cheddarNote : null;
+  if (!note) return null;
+  const slot = note.count++ % 3;
+  if (slot === 0) note.slot = Math.floor(Math.random() * 3);
+  return slot === note.slot ? note.lines : null;
 }
 
 function addPlatforms() {
@@ -672,19 +681,19 @@ function drawPlatform(platform) {
   } else {
     ctx.drawImage(image,x,top,platform.w,h);
   }
-  if (platform.cheddarNote) drawCheddarNote(platform.x, top + h / 2, platform.w, h);
+  if (platform.noteLines) drawCheeseNote(platform.noteLines, platform.x, top + h / 2, platform.w, h);
 }
 
-function drawCheddarNote(x, y, cheeseWidth, cheeseHeight) {
-  const fontSize = Math.min(13, cheeseWidth / 9.5, (cheeseHeight - 10) / (CHEDDAR_NOTE_LINES.length * 1.18));
+function drawCheeseNote(lines, x, y, cheeseWidth, cheeseHeight) {
+  const fontSize = Math.min(13, cheeseWidth / 9.5, (cheeseHeight - 10) / (lines.length * 1.18));
   const lineHeight = fontSize * 1.18;
-  const firstLineY = y - (CHEDDAR_NOTE_LINES.length - 1) * lineHeight / 2;
+  const firstLineY = y - (lines.length - 1) * lineHeight / 2;
   ctx.save();
   ctx.font = `650 ${fontSize}px "Malgun Gothic", "Apple SD Gothic Neo", sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#422410';
-  CHEDDAR_NOTE_LINES.forEach((line, index) => {
+  lines.forEach((line, index) => {
     ctx.fillText(line, x, firstLineY + index * lineHeight, cheeseWidth - 16);
   });
   ctx.restore();
