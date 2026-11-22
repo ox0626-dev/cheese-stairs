@@ -106,7 +106,7 @@
         <label id="nicknameLabel" for="nicknameInput">닉네임</label>
         <select id="nicknameSelect" hidden></select>
         <input id="nicknameInput" type="text" maxlength="16" placeholder="닉네임을 입력하세요" autocomplete="off" enterkeyhint="go">
-        <p id="nicknameNote" class="form-note">이 브라우저에서 닉네임을 최대 2개까지 저장할 수 있어요.</p>
+        <p id="nicknameNote" class="form-note">이 브라우저에서 닉네임을 최대 3개까지 저장할 수 있어요.</p>
       </form>
       <section id="rankingPanel" class="ranking" aria-labelledby="rankingTitle" hidden>
         <h2 id="rankingTitle">치즈 랭킹 TOP 20</h2>
@@ -150,6 +150,7 @@ const message = document.querySelector('#message');
 const title = document.querySelector('#title');
 const description = document.querySelector('#description');
 const start = document.querySelector('#start');
+const MAX_SAVED_NICKNAMES = 3;
 const nicknameForm = document.querySelector('#nicknameForm');
 const nicknameInput = document.querySelector('#nicknameInput');
 const nicknameSelect = document.querySelector('#nicknameSelect');
@@ -644,7 +645,9 @@ function updateNicknameField() {
 
 function showNicknames(nicknames) {
   nicknameSelect.replaceChildren(...nicknames.map(name => new Option(name, name)));
-  if (nicknames.length === 1) nicknameSelect.add(new Option('새 닉네임 입력', ''));
+  if (nicknames.length > 0 && nicknames.length < MAX_SAVED_NICKNAMES) {
+    nicknameSelect.add(new Option('새 닉네임 입력', ''));
+  }
   nicknameSelect.hidden = nicknames.length === 0;
   if (nicknames.includes(activeNickname)) nicknameSelect.value = activeNickname;
   updateNicknameField();
@@ -759,7 +762,7 @@ async function startPlaying() {
       backgroundMusic.pause();
       const errors = {
         invalid_nickname: '닉네임은 글자, 숫자, 공백, 밑줄, 하이픈으로 최대 16자까지 입력할 수 있어요.',
-        nickname_limit: '이 브라우저에는 닉네임을 2개까지 만들 수 있어요. 저장된 닉네임을 선택해 주세요.',
+        nickname_limit: '이 브라우저에는 닉네임을 3개까지 저장할 수 있어요. 저장된 닉네임을 선택해 주세요.',
         nickname_taken: '이미 등록된 닉네임이에요. 다른 닉네임을 입력해 주세요.'
       };
       if (errors[error.message]) {
