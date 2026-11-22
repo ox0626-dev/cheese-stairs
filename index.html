@@ -192,7 +192,7 @@ const SOLE_INSET = 4;
 const CAMERA_SPEED = 19;
 const MAX_STEP_GAP = 112;
 const MAX_GRUYERE_STEP_GAP = 108;
-const MAX_PLATFORM_SHIFT = 144;
+const MAX_PLATFORM_SHIFT = 138;
 const STACKED_CHEDDAR_GAP = 102;
 const MUSIC_START_TIME = 12;
 const CHEESE_TIP_DURATION = 2.5;
@@ -321,9 +321,9 @@ let width, height, scale, offset, viewHeight;
 let player, platforms, lastHeight, level, flightIndex, stepIndex, camera, best, sparks;
 let cheeseBag = [];
 let emmentalBag = [];
-const PLATFORM_WIDTH = 128;
-const EXTRA_PLATFORM_WIDTH = 118;
-const STACKED_CHEDDAR_WIDTH = 106;
+const PLATFORM_WIDTH = 150;
+const EXTRA_PLATFORM_WIDTH = 140;
+const STACKED_CHEDDAR_WIDTH = 116;
 const START_PLATFORM_WIDTH = 176;
 const PLATFORM_IMAGE_REACH = START_PLATFORM_WIDTH * Math.max(...CHEESE_PHOTOS.map(photo => photo.aspect));
 const CHEESES_PER_NOTE = 3;
@@ -492,7 +492,7 @@ function makeCaptionSpace(platform, neighbors) {
     const touching = neighbors.filter(other => cheeseImagesOverlap(candidate, other));
     if (touching.some(other => other.noteLines)) continue;
     const adjusted = new Map(touching.map(other => [other, resizeCheese(other,
-      Math.min(other.w, 116))]));
+      Math.min(other.w, 132))]));
     if (neighbors.some(other => cheeseImagesOverlap(candidate, adjusted.get(other) || other))) continue;
     if ([...adjusted.entries()].some(([other, resized]) =>
       neighbors.some(captioned => captioned !== other && captioned.noteLines && cheeseImagesOverlap(resized, captioned)))) continue;
@@ -538,15 +538,15 @@ function addPlatforms() {
 
 function addStepPlatforms(step) {
   if (level > LAST_STARTING_CHEDDAR_STEP && level <= LAST_STACKED_CHEDDAR_STEP) {
-    const x = (level % 2 === 0 ? .68 : .32) * WIDTH;
+    const x = (level % 2 === 0 ? .67 : .33) * WIDTH;
     platforms.push(createPlatform(x, STACKED_CHEDDAR_WIDTH, lastHeight, level, STACKED_CHEDDAR));
     return;
   }
 
   const photo = nextCheesePhoto(level);
   const previousX = platforms.at(-1).x;
-  const lane = level === LAST_STACKED_CHEDDAR_STEP + 1 ? .47 : step.x;
-  const targetX = (.5 + (lane - .5) * 1.32) * WIDTH + (Math.random() - .5) * 16;
+  const targetX = (level === LAST_STACKED_CHEDDAR_STEP + 1 ? .47 : step.x) * WIDTH
+    + (Math.random() - .5) * 16;
   const x = Math.max(previousX - MAX_PLATFORM_SHIFT, Math.min(previousX + MAX_PLATFORM_SHIFT, targetX));
   const main = createPlatform(x, PLATFORM_WIDTH, lastHeight, level, photo);
   const extra = step.extra;
