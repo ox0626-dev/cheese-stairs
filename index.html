@@ -14,19 +14,31 @@
   *,*::before,*::after{box-sizing:border-box}
   html,body{margin:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none;background:#103968}
   body{font-family:system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
-  main{--safe-top:env(safe-area-inset-top,0px);--safe-right:env(safe-area-inset-right,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);position:fixed;top:var(--viewport-top,0px);inset-inline:0;height:100%;height:100dvh;height:var(--viewport-height,100dvh);overflow:hidden;isolation:isolate;background:linear-gradient(#123965,#4086b7 50%,#a5dbe8)}
-  canvas{position:absolute;inset:var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);display:block;width:calc(100% - var(--safe-left) - var(--safe-right));height:calc(100% - var(--safe-top) - var(--safe-bottom));touch-action:none}
+  main{
+    --game-height:var(--viewport-height,100%);
+    position:absolute;top:var(--viewport-top,0px);left:var(--viewport-left,0px);
+    width:var(--viewport-width,100%);height:var(--game-height);
+    display:grid;grid-template: auto minmax(0,1fr) auto / minmax(0,1fr);gap:8px;
+    padding:calc(8px + env(safe-area-inset-top,0px)) calc(8px + env(safe-area-inset-right,0px))
+      calc(10px + env(safe-area-inset-bottom,0px)) calc(8px + env(safe-area-inset-left,0px));
+    background:linear-gradient(#123965,#4086b7 50%,#a5dbe8);
+  }
+  @supports(height:100svh){main{--game-height:min(100svh,var(--viewport-height,100svh))}}
+  .stage{position:relative;min-height:0;min-width:0}
+  canvas{position:absolute;inset:0;display:block;width:100%;height:100%;touch-action:none}
   button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
   button:focus-visible{outline:3px solid #fff0ab;outline-offset:4px}
-  .hud{position:absolute;top:calc(env(safe-area-inset-top) + 16px);left:calc(env(safe-area-inset-left) + 18px);right:calc(env(safe-area-inset-right) + 18px);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;pointer-events:none}
+  .hud{grid-row:1;display:flex;justify-content:space-between;align-items:center;gap:10px;pointer-events:none}
   .score{background:#0d2d55df;border:1px solid #a9d7ff57;border-radius:16px;padding:8px 13px 9px;min-width:83px;box-shadow:0 5px 18px #0c2f542a}
   .score span{display:block;font-size:12px;font-weight:650;color:#d5ebff}
   .score strong{font-size:26px;line-height:1.12;color:#ffea87;font-variant-numeric:tabular-nums}
   .actions{display:flex;gap:7px;pointer-events:auto}
   .icon{display:grid;place-items:center;border:1px solid #a9d7ff69;background:#0d2d55df;border-radius:13px;width:42px;height:42px;padding:0;font-size:21px;line-height:1}
   .icon[hidden]{display:none}
-  .jump-hint{position:absolute;bottom:calc(20px + var(--safe-bottom));left:calc(var(--safe-left) + 9px);right:calc(var(--safe-right) + 9px);width:max-content;max-width:calc(100% - var(--safe-left) - var(--safe-right) - 18px);margin-inline:auto;font-size:12px;font-weight:750;text-align:center;background:#0b3058dc;color:#ffee9b;border:1px solid #a9d7ff68;border-radius:30px;padding:8px 9px;pointer-events:none}
-  .message{--bottom-gap:58px;position:absolute;bottom:calc(var(--safe-bottom) + var(--bottom-gap));left:calc(var(--safe-left) + 12px);right:calc(var(--safe-right) + 12px);display:flex;flex-direction:column;max-width:350px;max-height:calc(100% - var(--safe-top) - var(--safe-bottom) - var(--bottom-gap) - 86px);margin-inline:auto;text-align:center;padding:19px 15px 16px;background:#0c2c52f2;border:1px solid #a9d7ff7d;border-radius:24px;box-shadow:0 16px 55px #0b284b62}
+  .stage{grid-row:2}
+  .jump-hint,.message{grid-row:3;justify-self:center}
+  .jump-hint{max-width:100%;font-size:12px;font-weight:750;text-align:center;background:#0b3058dc;color:#ffee9b;border:1px solid #a9d7ff68;border-radius:30px;padding:8px 9px;pointer-events:none}
+  .message{display:flex;flex-direction:column;width:min(350px,100%);max-height:min(480px,calc(var(--game-height) * .56));text-align:center;padding:15px;background:#0c2c52f2;border:1px solid #a9d7ff7d;border-radius:24px;box-shadow:0 8px 22px #0b284b4d}
   .message-content{min-height:0;overflow:auto;overscroll-behavior:contain}
   .message>.start,.message>.change-nickname{flex:none}
   .message[hidden]{display:none}
@@ -44,19 +56,21 @@
   .message .game-status{color:#ffe797}
   .ranking{margin:0 0 12px}
   .ranking h2{font-size:17px;margin:0 0 7px}
-  .ranking ol{max-height:min(34dvh,260px);overflow:auto;overscroll-behavior-y:auto;margin:0;padding:0;list-style:none;text-align:left;touch-action:pan-y;font-variant-numeric:tabular-nums}
+  .ranking ol{margin:0;padding:0;list-style:none;text-align:left;touch-action:pan-y;font-variant-numeric:tabular-nums}
   .ranking li{display:grid;grid-template-columns:2ch minmax(0,1fr) auto;align-items:center;gap:9px;padding:6px 8px;border-top:1px solid #a9d7ff35;font-size:13px}
   .ranking li span:nth-child(2){overflow-wrap:anywhere}
   .ranking li strong{color:#ffea87}
   .ranking li p{grid-column:1/-1;margin:2px 0}
   .change-nickname{margin-top:10px;border:0;background:none;text-decoration:underline;font-size:13px}
-  @media(max-height:490px){.message{--bottom-gap:12px;padding:12px}.message p{margin:5px 0 8px}.hud{top:calc(var(--safe-top) + 8px)}}
-  main[data-compact] .message{--bottom-gap:10px;padding:10px;max-height:calc(100% - var(--safe-top) - var(--safe-bottom) - 88px)}
+  main[data-compact]{gap:5px}
+  main[data-compact] .score{display:flex;align-items:baseline;gap:5px;padding:5px 8px}
+  main[data-compact] .score strong{font-size:18px}
+  main[data-compact] .message{padding:8px}
+  main[data-compact] .message p{margin:5px 0 8px}
 </style>
 </head>
 <body>
 <main id="game" aria-label="찍찍 치즈계단">
-  <canvas id="field" aria-label="생쥐가 치즈 계단을 올라가는 화면"></canvas>
   <div class="hud">
     <div class="score"><span>최고 도달</span><strong id="score">0</strong><span>번째 치즈</span></div>
     <div class="actions">
@@ -64,6 +78,7 @@
       <button type="button" id="pause" class="icon" aria-label="일시 정지" title="일시 정지" hidden>Ⅱ</button>
     </div>
   </div>
+  <div class="stage"><canvas id="field" aria-label="생쥐가 치즈 계단을 올라가는 화면"></canvas></div>
   <div id="jumpHint" class="jump-hint" hidden>좌우 터치로 점프 · 공중에서는 방향 전환</div>
   <section id="message" class="message" aria-labelledby="title">
     <div class="message-content">
@@ -320,7 +335,6 @@ function resize() {
   const previousViewHeight = viewHeight;
   width = box.width;
   height = box.height;
-  game.toggleAttribute('data-compact', height < 330);
   const ratio = Math.min(2.5, window.devicePixelRatio || 1);
   canvas.width = Math.round(width * ratio);
   canvas.height = Math.round(height * ratio);
@@ -339,13 +353,13 @@ function resize() {
 
 function fitVisualViewport() {
   const viewport = window.visualViewport;
-  if (viewport && viewport.scale === 1 && viewport.height > 0) {
-    game.style.setProperty('--viewport-height', `${viewport.height}px`);
-    game.style.setProperty('--viewport-top', `${viewport.offsetTop}px`);
-  } else {
-    game.style.removeProperty('--viewport-height');
-    game.style.removeProperty('--viewport-top');
-  }
+  if (viewport && Math.abs(viewport.scale - 1) > .01) return;
+  const height = viewport?.height || window.innerHeight;
+  game.style.setProperty('--viewport-height', `${Math.floor(height)}px`);
+  game.style.setProperty('--viewport-width', `${Math.floor(viewport?.width || window.innerWidth)}px`);
+  game.style.setProperty('--viewport-top', `${viewport?.pageTop || 0}px`);
+  game.style.setProperty('--viewport-left', `${viewport?.pageLeft || 0}px`);
+  game.toggleAttribute('data-compact', height < 490);
 }
 
 function setMode(next) {
@@ -864,6 +878,7 @@ if (game.requestFullscreen && document.fullscreenEnabled) {
 }
 window.visualViewport?.addEventListener('resize', fitVisualViewport);
 window.visualViewport?.addEventListener('scroll', fitVisualViewport);
+window.addEventListener('resize', fitVisualViewport);
 fitVisualViewport();
 new ResizeObserver(resize).observe(canvas);
 resize();
