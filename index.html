@@ -23,8 +23,11 @@
       calc(10px + env(safe-area-inset-bottom,0px)) calc(8px + env(safe-area-inset-left,0px));
     background:linear-gradient(#123965,#4086b7 50%,#a5dbe8);
   }
-  @supports(height:100svh){main{--game-height:min(100svh,var(--viewport-height,100svh))}}
-  main[data-mode="playing"]{touch-action:none}
+  @supports(height:100dvh){main{--game-height:var(--viewport-height,100dvh)}}
+  main[data-mode="playing"]{grid-template-rows:auto 1fr;touch-action:none}
+  main[data-mode="playing"] .stage{position:absolute;inset:0;grid-area:auto}
+  main[data-mode="playing"] .hud{z-index:1}
+  main[data-mode="playing"] .jump-hint{position:absolute;bottom:calc(8px + env(safe-area-inset-bottom,0px));width:max-content;max-width:calc(100% - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px) - 16px);z-index:1}
   .stage{position:relative;min-height:0;min-width:0}
   canvas{position:absolute;inset:0;display:block;width:100%;height:100%;touch-action:none}
   button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
@@ -41,7 +44,10 @@
   .jump-hint{max-width:100%;font-size:12px;font-weight:750;text-align:center;background:#0b3058dc;color:#ffee9b;border:1px solid #a9d7ff68;border-radius:30px;padding:8px 9px;pointer-events:none}
   .message{display:flex;flex-direction:column;width:min(350px,100%);max-height:min(480px,calc(var(--game-height) * .56));text-align:center;padding:15px;background:#0c2c52f2;border:1px solid #a9d7ff7d;border-radius:24px;box-shadow:0 8px 22px #0b284b4d}
   .message-content{min-height:0;overflow:auto;overscroll-behavior:contain}
-  .message>.start,.message>.change-nickname{flex:none}
+  .message-actions{display:flex;gap:8px;flex:none}
+  .message-actions>.start{flex:1;min-width:0}
+  .message-actions>.ranking-action{flex:1;min-width:0;min-height:44px;padding:7px 8px;border:1px solid #a9d7ff7d;border-radius:13px;background:#17446f;font-size:14px;font-weight:750}
+  .message>.change-nickname{flex:none}
   .message[hidden]{display:none}
   h1{font-size:clamp(22px,6.4vw,32px);line-height:1.08;letter-spacing:-.055em;margin:0}
   .message p{font-size:14px;line-height:1.45;margin:9px 0 14px;color:#d9ecff}
@@ -97,7 +103,11 @@
       </section>
       <p id="gameStatus" class="game-status" role="status" hidden></p>
     </div>
-    <button type="button" id="start" class="start">게임 시작</button>
+    <div class="message-actions">
+      <button type="button" id="start" class="start">게임 시작</button>
+      <button type="button" id="openRanking" class="ranking-action" aria-controls="rankingPanel">랭킹 보기</button>
+      <button type="button" id="closeRanking" class="ranking-action" hidden>닉네임 입력으로 돌아가기</button>
+    </div>
     <button type="button" id="changeNickname" class="change-nickname" hidden>닉네임 선택</button>
   </section>
 </main>
@@ -121,6 +131,8 @@ const nicknameSelect = document.querySelector('#nicknameSelect');
 const nicknameLabel = document.querySelector('#nicknameLabel');
 const rankingPanel = document.querySelector('#rankingPanel');
 const rankingList = document.querySelector('#rankingList');
+const openRanking = document.querySelector('#openRanking');
+const closeRanking = document.querySelector('#closeRanking');
 const gameStatus = document.querySelector('#gameStatus');
 const changeNickname = document.querySelector('#changeNickname');
 const pause = document.querySelector('#pause');
@@ -341,8 +353,12 @@ function resize() {
   canvas.height = Math.round(height * ratio);
   ctx.setTransform(ratio,0,0,ratio,0,0);
   // Leave room for the platform art on both sides of the playable lane.
-  scale = Math.min(width / (WIDTH + 24), height / 540, 1.85);
-  offset = (width - WIDTH * scale) / 2;
+  const padding = getComputedStyle(game);
+  const left = mode === 'playing' ? parseFloat(padding.paddingLeft) : 0;
+  const right = mode === 'playing' ? parseFloat(padding.paddingRight) : 0;
+  const playWidth = Math.max(1, width - left - right);
+  scale = Math.min(playWidth / (WIDTH + 24), height / 540, 1.85);
+  offset = left + (playWidth - WIDTH * scale) / 2;
   viewHeight = height / scale;
   if (mode === 'ready' && player) {
     camera = START - viewHeight * .315;
@@ -356,8 +372,8 @@ function fitVisualViewport() {
   const viewport = window.visualViewport;
   if (viewport && Math.abs(viewport.scale - 1) > .01) return;
   const height = viewport?.height || window.innerHeight;
-  game.style.setProperty('--viewport-height', `${Math.floor(height)}px`);
-  game.style.setProperty('--viewport-width', `${Math.floor(viewport?.width || window.innerWidth)}px`);
+  game.style.setProperty('--viewport-height', `${height}px`);
+  game.style.setProperty('--viewport-width', `${viewport?.width || window.innerWidth}px`);
   game.style.setProperty('--viewport-top', `${viewport?.pageTop || 0}px`);
   game.style.setProperty('--viewport-left', `${viewport?.pageLeft || 0}px`);
   game.toggleAttribute('data-compact', height < 490);
@@ -371,8 +387,12 @@ function setMode(next) {
   pause.hidden = next !== 'playing';
   jumpHint.hidden = next !== 'playing';
   message.dataset.mode = next;
+  message.setAttribute('aria-labelledby', next === 'ranking' ? 'rankingTitle' : 'title');
   nicknameForm.hidden = next !== 'ready';
-  rankingPanel.hidden = next !== 'fallen';
+  rankingPanel.hidden = next !== 'fallen' && next !== 'ranking';
+  title.hidden = description.hidden = start.hidden = next === 'ranking';
+  openRanking.hidden = next !== 'ready';
+  closeRanking.hidden = next !== 'ranking';
   changeNickname.hidden = next !== 'fallen';
   setGameStatus('');
   if (next === 'ready') {
@@ -451,7 +471,7 @@ nicknameForm.addEventListener('submit', event => {
 });
 changeNickname.addEventListener('click', () => setMode('ready'));
 requestRanking().then(({ nicknames }) => {
-  if (mode === 'ready' && !starting && !nicknameInput.value) showNicknames(nicknames);
+  if ((mode === 'ready' || mode === 'ranking') && !starting && !nicknameInput.value) showNicknames(nicknames);
 }).catch(() => {});
 
 function showRankingMessage(text) {
@@ -481,11 +501,15 @@ async function showFinalRanking(id, score) {
     }
   }
   if (!canRender()) return;
-  if (!result.ranking.length) {
+  renderRanking(result.ranking);
+}
+
+function renderRanking(ranking) {
+  if (!ranking.length) {
     showRankingMessage('아직 등록된 기록이 없어요.');
     return;
   }
-  rankingList.replaceChildren(...result.ranking.map(({ nickname, score }, index) => {
+  rankingList.replaceChildren(...ranking.slice(0, 20).map(({ nickname, score }, index) => {
     const row = document.createElement('li');
     const position = document.createElement('span');
     const name = document.createElement('span');
@@ -496,11 +520,30 @@ async function showFinalRanking(id, score) {
     row.append(position, name, count);
     return row;
   }));
-  rankingList.scrollTop = 0;
+  rankingList.closest('.message-content').scrollTop = 0;
 }
 
+let rankingView = 0;
+openRanking.addEventListener('click', async () => {
+  const view = ++rankingView;
+  setMode('ranking');
+  showRankingMessage('랭킹을 불러오는 중…');
+  closeRanking.focus();
+  try {
+    const { ranking } = await requestRanking(null, '?view=top');
+    if (mode === 'ranking' && view === rankingView) renderRanking(ranking);
+  } catch {
+    if (mode === 'ranking' && view === rankingView) showRankingMessage('랭킹을 불러오지 못했어요.');
+  }
+});
+function returnToNickname() {
+  setMode('ready');
+  openRanking.focus();
+}
+closeRanking.addEventListener('click', returnToNickname);
+
 async function startPlaying() {
-  if (mode === 'playing' || starting) return;
+  if (mode === 'playing' || mode === 'ranking' || starting) return;
   if (mode !== 'paused') {
     const nickname = mode === 'fallen' ? activeNickname :
       (nicknameInput.hidden ? nicknameSelect.value : nicknameInput.value.trim());
@@ -509,7 +552,7 @@ async function startPlaying() {
       nicknameInput.focus();
       return;
     }
-    starting = start.disabled = changeNickname.disabled = true;
+    starting = start.disabled = changeNickname.disabled = openRanking.disabled = true;
     setGameStatus('닉네임을 확인하는 중…');
     unlockAudio();
     backgroundMusic.currentTime = MUSIC_START_TIME;
@@ -541,7 +584,7 @@ async function startPlaying() {
       currentRun = '';
       reset();
     } finally {
-      starting = start.disabled = changeNickname.disabled = false;
+      starting = start.disabled = changeNickname.disabled = openRanking.disabled = false;
     }
   } else {
     unlockAudio();
@@ -695,12 +738,7 @@ function update(dt) {
 }
 
 function sky() {
-  const gradient = ctx.createLinearGradient(0,0,0,height);
-  gradient.addColorStop(0,'#123965');
-  gradient.addColorStop(.50,'#4086b7');
-  gradient.addColorStop(1,'#a5dbe8');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0,0,width,height);
+  ctx.clearRect(0,0,width,height);
 
   const glow = ctx.createRadialGradient(width*.75,height*.72,0,width*.75,height*.72,Math.max(width,height)*.66);
   glow.addColorStop(0,'#ffebbc72');
@@ -843,13 +881,18 @@ game.addEventListener('pointerdown', event => {
       (event.pointerType === 'mouse' && event.button !== 0)) return;
   event.preventDefault();
   const bounds = canvas.getBoundingClientRect();
-  requestJump(event.clientX < bounds.left + bounds.width / 2 ? -1 : 1);
+  requestJump(event.clientX < bounds.left + offset + WIDTH * scale / 2 ? -1 : 1);
 });
 canvas.addEventListener('contextmenu',event=>event.preventDefault());
 start.addEventListener('click',startPlaying);
 pause.addEventListener('click',()=>setMode('paused'));
 document.addEventListener('keydown',event=>{
   if (!['Space','Escape','Enter'].includes(event.code)) return;
+  if (mode === 'ranking' && event.code === 'Escape') {
+    event.preventDefault();
+    returnToNickname();
+    return;
+  }
   if (event.target instanceof Element && event.target.closest('button,input,select,[tabindex]')) return;
   event.preventDefault();
   if (event.repeat) return;
