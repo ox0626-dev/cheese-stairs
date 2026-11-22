@@ -967,13 +967,9 @@ function drawCheeseNote(lines, x, y, cheeseWidth, cheeseHeight) {
   ctx.font = `650 ${fontSize}px "Malgun Gothic", "Apple SD Gothic Neo", sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.strokeStyle = '#fff4cc';
-  ctx.lineWidth = 1.1;
-  ctx.lineJoin = 'round';
   ctx.fillStyle = '#422410';
   lines.forEach((line, index) => {
     const lineY = firstLineY + index * lineHeight;
-    ctx.strokeText(line, x, lineY, cheeseWidth - 16);
     ctx.fillText(line, x, lineY, cheeseWidth - 16);
   });
   ctx.restore();
