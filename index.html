@@ -1063,10 +1063,7 @@ function screenY(h) {
 function drawPlatform(platform) {
   const {photo} = platform;
   const image = art[photo.sprite];
-  if (!image) return;
   const x = platform.x - platform.w / 2;
-  const y = screenY(platform.h);
-  if (y < -170 || y > viewHeight + 135) return;
   const h = platform.imageHeight;
   const top = screenY(platform.imageTop);
   if (photo.rotated) {
@@ -1077,9 +1074,6 @@ function drawPlatform(platform) {
     ctx.restore();
   } else {
     ctx.drawImage(image,x,top,platform.w,h);
-  }
-  if (platform.noteLines) {
-    drawCheeseNote(platform.noteLines, platform.x, top + h / 2, platform.w, h);
   }
 }
 
@@ -1175,7 +1169,16 @@ function render(now) {
   ctx.save();
   ctx.translate(offset,0);
   ctx.scale(scale,scale);
-  for (const platform of platforms) drawPlatform(platform);
+  const visiblePlatforms = platforms.filter(platform => {
+    const y = screenY(platform.h);
+    return art[platform.photo.sprite] && y >= -170 && y <= viewHeight + 135;
+  });
+  for (const platform of visiblePlatforms) drawPlatform(platform);
+
+  // Draw captions after the cheese images so a neighboring cheese cannot cover them.
+  for (const {noteLines, x, w, imageTop, imageHeight} of visiblePlatforms) {
+    if (noteLines) drawCheeseNote(noteLines, x, screenY(imageTop) + imageHeight / 2, w, imageHeight);
+  }
   for (const spark of sparks) {
     ctx.globalAlpha = spark.life / spark.max;
     ctx.fillStyle = spark.color;
