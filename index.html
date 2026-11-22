@@ -537,8 +537,9 @@ function addPlatforms() {
   while (lastHeight < camera + viewHeight + 2 * PLATFORM_IMAGE_REACH + 120) {
     const flight = flights[flightIndex];
     const step = flight[stepIndex++];
-    lastHeight += step.gap;
     level += 1;
+    const stackedCheddar = level > LAST_STARTING_CHEDDAR_STEP && level <= LAST_STACKED_CHEDDAR_STEP;
+    lastHeight += stackedCheddar ? Math.min(step.gap, 78) : step.gap;
     addStepPlatforms(step);
     if (stepIndex === flight.length) {
       stepIndex = 0;
@@ -564,7 +565,7 @@ function addPlatforms() {
 
 function addStepPlatforms(step) {
   if (level > LAST_STARTING_CHEDDAR_STEP && level <= LAST_STACKED_CHEDDAR_STEP) {
-    const x = (level % 2 === 0 ? .77 : .23) * WIDTH;
+    const x = (level === LAST_STARTING_CHEDDAR_STEP + 1 ? .62 : level % 2 === 0 ? .70 : .30) * WIDTH;
     const cheddar = createPlatform(x, STACKED_CHEDDAR_WIDTH, lastHeight, level, STACKED_CHEDDAR);
     cheddar.wideCheddarCaption = true;
     platforms.push(cheddar);
@@ -582,7 +583,8 @@ function addStepPlatforms(step) {
       platforms.push(createPlatform(extra.x * WIDTH, EXTRA_PLATFORM_WIDTH, lastHeight - extra.below, level, extraPhoto));
     }
   }
-  platforms.push(createPlatform(step.x * WIDTH, PLATFORM_WIDTH, lastHeight, level, photo));
+  const x = level === LAST_STACKED_CHEDDAR_STEP + 1 ? .47 : step.x;
+  platforms.push(createPlatform(x * WIDTH, PLATFORM_WIDTH, lastHeight, level, photo));
 }
 
 function resize() {
