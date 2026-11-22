@@ -188,6 +188,9 @@ const tick = 1 / 120;
 const EDGE = 64;
 const START = 170;
 const SOLE_INSET = 4;
+const BASE_CAMERA_SPEED = 19;
+const MAX_CAMERA_SPEED = 29;
+const MAX_STEP_GAP = 120;
 const MUSIC_START_TIME = 12;
 const CHEESE_TIP_START = 3;
 const CHEESE_TIP_DURATION = 2.5;
@@ -483,7 +486,8 @@ function addPlatforms() {
     const step = flight[stepIndex++];
     level += 1;
     const stackedCheddar = level > LAST_STARTING_CHEDDAR_STEP && level <= LAST_STACKED_CHEDDAR_STEP;
-    lastHeight += stackedCheddar ? Math.min(step.gap, 78) : step.gap;
+    const extraGap = Math.max(0, Math.min(8, level - LAST_STACKED_CHEDDAR_STEP - 1));
+    lastHeight += stackedCheddar ? Math.min(step.gap, 78) : Math.min(step.gap + extraGap, MAX_STEP_GAP);
     addStepPlatforms(step);
     if (stepIndex === flight.length) {
       stepIndex = 0;
@@ -971,7 +975,9 @@ function update(dt) {
   }
 
   const target = player.h - viewHeight * .43;
-  camera = Math.max(camera + 19 * dt, camera + (target - camera) * Math.min(dt * 5.5,1));
+  const cameraSpeed = Math.min(MAX_CAMERA_SPEED,
+    BASE_CAMERA_SPEED + Math.max(0, best - LAST_STACKED_CHEDDAR_STEP) * .3);
+  camera = Math.max(camera + cameraSpeed * dt, camera + (target - camera) * Math.min(dt * 5.5,1));
   addPlatforms();
   while (platforms.length && platforms[0].h < camera - 240) platforms.shift();
   for (const spark of sparks) {
