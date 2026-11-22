@@ -24,6 +24,7 @@
     background:linear-gradient(#123965,#4086b7 50%,#a5dbe8);
   }
   @supports(height:100svh){main{--game-height:min(100svh,var(--viewport-height,100svh))}}
+  main[data-mode="playing"]{touch-action:none}
   .stage{position:relative;min-height:0;min-width:0}
   canvas{position:absolute;inset:0;display:block;width:100%;height:100%;touch-action:none}
   button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
@@ -364,6 +365,7 @@ function fitVisualViewport() {
 
 function setMode(next) {
   mode = next;
+  game.dataset.mode = next;
   if (next !== 'playing') backgroundMusic.pause();
   message.hidden = next === 'playing';
   pause.hidden = next !== 'playing';
@@ -836,8 +838,9 @@ function render(now) {
   ctx.restore();
 }
 
-canvas.addEventListener('pointerdown', event => {
-  if (mode !== 'playing' || (event.pointerType === 'mouse' && event.button !== 0)) return;
+game.addEventListener('pointerdown', event => {
+  if (mode !== 'playing' || event.target.closest('button') ||
+      (event.pointerType === 'mouse' && event.button !== 0)) return;
   event.preventDefault();
   const bounds = canvas.getBoundingClientRect();
   requestJump(event.clientX < bounds.left + bounds.width / 2 ? -1 : 1);
