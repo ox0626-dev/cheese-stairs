@@ -170,6 +170,15 @@ const AGED_GOUDA_NOTE_LINES = [
 const ROUND_CHEESE = ['cheesePhoto8', 'cheesePhoto9']
   .map(sprite => CHEESE_PHOTOS.find(photo => photo.sprite === sprite));
 const LAST_ROUND_CHEESE_STEP = 25;
+const BRIE_NOTE_LINES = [
+  '<브리치즈>',
+  '프랑스의 대표적인 치즈.',
+  '하얀 곰팡이 껍질과',
+  '부드러운 속살.',
+  '고소하고 크리미한',
+  '풍미가 특징이다.',
+  '100g당 약 7,000원',
+];
 const CHEESE_PILE = CHEESE_PHOTOS.find(photo => photo.sprite === 'cheesePhoto12');
 const LAST_CHEESE_PILE_STEP = 30;
 
@@ -209,6 +218,7 @@ const cheeseNotes = [
   {photos: [STACKED_CHEDDAR], lines: STACKED_CHEDDAR_NOTE_LINES, count: 0, slot: 0},
   {photos: HOLEY_CHEESE, lines: EMMENTAL_NOTE_LINES, count: 0, slot: 0},
   {photos: GOLDEN_CHEESE.slice(1), lines: AGED_GOUDA_NOTE_LINES, count: 0, slot: 0},
+  {photos: [ROUND_CHEESE[1]], lines: BRIE_NOTE_LINES, count: 0, slot: 0},
 ];
 let mode = 'ready';
 let elapsed = 0;
