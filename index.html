@@ -678,21 +678,14 @@ function drawPlatform(platform) {
 function drawCheddarNote(x, y, cheeseWidth, cheeseHeight) {
   const fontSize = Math.min(13, cheeseWidth / 9.5, (cheeseHeight - 10) / (CHEDDAR_NOTE_LINES.length * 1.18));
   const lineHeight = fontSize * 1.18;
-  const noteHeight = lineHeight * CHEDDAR_NOTE_LINES.length + 6;
+  const firstLineY = y - (CHEDDAR_NOTE_LINES.length - 1) * lineHeight / 2;
   ctx.save();
   ctx.font = `650 ${fontSize}px "Malgun Gothic", "Apple SD Gothic Neo", sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  const textWidth = Math.max(...CHEDDAR_NOTE_LINES.map(line => ctx.measureText(line).width));
-  const noteWidth = Math.min(cheeseWidth - 8, textWidth + 14);
-  const top = y - noteHeight / 2;
-  ctx.fillStyle = 'rgba(255, 245, 203, .9)';
-  ctx.beginPath();
-  ctx.roundRect(x - noteWidth / 2, top, noteWidth, noteHeight, 6);
-  ctx.fill();
   ctx.fillStyle = '#422410';
   CHEDDAR_NOTE_LINES.forEach((line, index) => {
-    ctx.fillText(line, x, top + 3 + (index + .5) * lineHeight, noteWidth - 8);
+    ctx.fillText(line, x, firstLineY + index * lineHeight, cheeseWidth - 16);
   });
   ctx.restore();
 }
