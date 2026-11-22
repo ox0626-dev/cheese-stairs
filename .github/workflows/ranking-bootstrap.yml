@@ -20,11 +20,68 @@ jobs:
           RUN402_TELEMETRY: "0"
           RUN402_CLIENT: codex
         run: |
-          npx --yes run402@4.126.1 up --name jjikjjik-cheese-ranking -y > "$RUNNER_TEMP/cheese-release.json"
+          npx --yes run402@4.126.1 up --name jjikjjik-cheese-top20 -y > "$RUNNER_TEMP/cheese-release.json"
           node -e 'const r=require(process.argv[1]).result; if(!r?.deploy?.urls?.site) process.exit(1); console.log("PUBLIC_RANK_URL="+r.deploy.urls.site)' "$RUNNER_TEMP/cheese-release.json"
+      - name: Verify nickname and score lifecycle
+        working-directory: ranking
+        env:
+          RUN402_TELEMETRY: "0"
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { randomUUID } from 'node:crypto';
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const base = process.env.RUNNER_TEMP;
+          const result = JSON.parse(readFileSync(base + '/cheese-release.json')).result;
+          const url = result.deploy.urls.site;
+          const testDevice = randomUUID();
+          writeFileSync(base + '/cheese-test-id', testDevice);
+          writeFileSync(base + '/cheese-project-id', result.project_id);
+          const nickname = 'qa' + testDevice.slice(0, 8);
+          const origin = 'https://ox0626-dev.github.io';
+          async function api(query, body) {
+            const headers = { Origin: origin, ...(body && { 'Content-Type': 'application/json' }) };
+            const response = await fetch(url + '/api/ranking' + query, {
+              method: body ? 'POST' : 'GET',
+              headers, body: body && JSON.stringify({ ...body, device: testDevice })
+            });
+            assert.equal(response.headers.get('access-control-allow-origin'), origin);
+            return [response.status, await response.json()];
+          }
+          const options = await fetch(url + '/api/ranking', {
+            method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'Content-Type' }
+          });
+          assert.equal(options.status, 204);
+          assert.equal(options.headers.get('access-control-allow-origin'), origin);
+          const start = (name) => api('', { action: 'start', nickname: name });
+          const [status, first] = await start(nickname + 'a');
+          assert.equal(status, 200);
+          const [nextStatus, second] = await start(nickname + 'b');
+          assert.equal(nextStatus, 200);
+          assert.equal(second.nicknames.length, 2);
+          assert.deepEqual(await start(nickname + 'c'), [409, { error: 'nickname_limit' }]);
+          assert.deepEqual((await api('?device=' + testDevice))[1].nicknames, second.nicknames);
+          const [finishStatus, results] = await api('', { action: 'finish', id: first.id, score: 1 });
+          assert.equal(finishStatus, 200);
+          assert.ok(results.ranking.some(row => row.nickname === nickname + 'a' && row.score === 1));
+          assert.ok((await api('?view=top'))[1].ranking.some(row => row.nickname === nickname + 'a'));
+          console.log('Nickname storage, two-slot cap, browser access and shared scores verified.');
+          JS
+      - name: Remove only the synthetic verification records
+        if: always()
+        working-directory: ranking
+        env:
+          RUN402_TELEMETRY: "0"
+        run: |
+          if [[ ! -f "$RUNNER_TEMP/cheese-test-id" ]]; then exit 0; fi
+          test_device=$(cat "$RUNNER_TEMP/cheese-test-id")
+          project=$(cat "$RUNNER_TEMP/cheese-project-id")
+          [[ "$test_device" =~ ^[a-f0-9-]{36}$ ]]
+          npx --yes run402@4.126.1 projects sql "$project" "DELETE FROM runs WHERE nickname_key IN (SELECT nickname_key FROM profiles WHERE device_id = '$test_device'::uuid)" >/dev/null
+          npx --yes run402@4.126.1 projects sql "$project" "DELETE FROM profiles WHERE device_id = '$test_device'::uuid" >/dev/null
       - name: Allow this repository to update the ranking API
         working-directory: ranking
         env:
           RUN402_TELEMETRY: "0"
         run: |
-          npx --yes run402@4.126.1 ci link github --manifest run402.json --repo ox0626-dev/cheese-stairs --repository-id 1467315184 --branch main --no-workflow --route-scope /api/ranking
+          npx --yes run402@4.126.1 ci link github --manifest run402.json --repo ox0626-dev/cheese-stairs --repository-id 1467315184 --branch main --route-scope /api/ranking
