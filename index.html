@@ -178,6 +178,12 @@ const BRIE_NOTE_LINES = [
 ];
 const CHEESE_PILE = CHEESE_PHOTOS.find(photo => photo.sprite === 'cheesePhoto12');
 const LAST_CHEESE_PILE_STEP = 30;
+const CHEESE_PILE_NOTE_LINES = [
+  '<모듬치즈>',
+  '와인안주로 좋은',
+  '모듬 치즈이다.',
+  '35,000원.',
+];
 
 const flights = [
   [
@@ -216,6 +222,7 @@ const cheeseNotes = [
   {photos: HOLEY_CHEESE, lines: EMMENTAL_NOTE_LINES, count: 0, slot: 0},
   {photos: GOLDEN_CHEESE.slice(1), lines: AGED_GOUDA_NOTE_LINES, count: 0, slot: 0},
   {photos: [ROUND_CHEESE[1]], lines: BRIE_NOTE_LINES, count: 0, slot: 0},
+  {photos: [CHEESE_PILE], lines: CHEESE_PILE_NOTE_LINES, count: 0, slot: 0},
 ];
 let mode = 'ready';
 let elapsed = 0;
@@ -705,7 +712,9 @@ function drawPlatform(platform) {
   } else {
     ctx.drawImage(image,x,top,platform.w,h);
   }
-  if (platform.noteLines) drawCheeseNote(platform.noteLines, platform.x, top + h / 2, platform.w, h);
+  if (platform.noteLines) {
+    drawCheeseNote(platform.noteLines, platform.x, top + h / 2, platform.w, h);
+  }
 }
 
 function drawCheeseNote(lines, x, y, cheeseWidth, cheeseHeight) {
@@ -718,7 +727,8 @@ function drawCheeseNote(lines, x, y, cheeseWidth, cheeseHeight) {
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#422410';
   lines.forEach((line, index) => {
-    ctx.fillText(line, x, firstLineY + index * lineHeight, cheeseWidth - 16);
+    const lineY = firstLineY + index * lineHeight;
+    ctx.fillText(line, x, lineY, cheeseWidth - 16);
   });
   ctx.restore();
 }
