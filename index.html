@@ -221,6 +221,16 @@ const STACKED_CHEDDAR_NOTE_LINES = [
   '1500kal.',
 ];
 const LAST_STACKED_CHEDDAR_STEP = 10;
+const BLOCK_CHEDDAR = ['cheesePhoto2', 'cheesePhoto3']
+  .map(sprite => CHEESE_PHOTOS.find(photo => photo.sprite === sprite));
+const LAST_BLOCK_CHEDDAR_STEP = 15;
+const BLOCK_CHEDDAR_NOTE_LINES = [
+  '<블록 체다치즈>',
+  '단단하고 묵직한 덩어리 치즈.',
+  '숙성될수록 진하고',
+  '고소한 풍미가 깊어진다.',
+  '100g에 3,500원.',
+];
 const HOLEY_CHEESE = ['cheesePhoto1', 'cheesePhoto7', 'cheesePhoto11', 'cheesePhoto14']
   .map(sprite => CHEESE_PHOTOS.find(photo => photo.sprite === sprite));
 const EMMENTAL_NOTE_LINES = [
@@ -231,7 +241,6 @@ const EMMENTAL_NOTE_LINES = [
   '풍미가 있다.',
   '100g당 5,000원',
 ];
-const LAST_HOLEY_CHEESE_STEP = 15;
 const GOLDEN_CHEESE = ['cheesePhoto2', 'cheesePhoto3', 'cheesePhoto15', 'cheesePhoto16']
   .map(sprite => CHEESE_PHOTOS.find(photo => photo.sprite === sprite));
 const LAST_GOLDEN_CHEESE_STEP = 20;
@@ -326,6 +335,8 @@ const cheeseNotes = [
   {photos: STARTING_CHEDDAR, lines: SLICED_CHEDDAR_NOTE_LINES, lastLevel: LAST_STARTING_CHEDDAR_STEP},
   {photos: STARTING_CHEDDAR, lines: CHEDDAR_NOTE_LINES, firstLevel: LAST_STARTING_CHEDDAR_STEP + 1},
   {photos: [STACKED_CHEDDAR], lines: STACKED_CHEDDAR_NOTE_LINES},
+  {photos: BLOCK_CHEDDAR, lines: BLOCK_CHEDDAR_NOTE_LINES,
+    firstLevel: LAST_STACKED_CHEDDAR_STEP + 1, lastLevel: LAST_BLOCK_CHEDDAR_STEP},
   {photos: HOLEY_CHEESE, lines: EMMENTAL_NOTE_LINES},
   {photos: GOLDEN_CHEESE.slice(1), lines: AGED_GOUDA_NOTE_LINES},
   {photos: [ROUND_CHEESE[1]], lines: BRIE_NOTE_LINES},
@@ -358,12 +369,12 @@ function nextCheesePhoto(level) {
   if (level <= LAST_STACKED_CHEDDAR_STEP) {
     return STACKED_CHEDDAR;
   }
-  if (level <= LAST_HOLEY_CHEESE_STEP) {
+  if (level <= LAST_BLOCK_CHEDDAR_STEP) {
     const index = level - LAST_STACKED_CHEDDAR_STEP - 1;
-    return HOLEY_CHEESE[index % HOLEY_CHEESE.length];
+    return BLOCK_CHEDDAR[index % BLOCK_CHEDDAR.length];
   }
   if (level <= LAST_GOLDEN_CHEESE_STEP) {
-    const index = level - LAST_HOLEY_CHEESE_STEP - 1;
+    const index = level - LAST_BLOCK_CHEDDAR_STEP - 1;
     return GOLDEN_CHEESE[index % GOLDEN_CHEESE.length];
   }
   if (level <= LAST_ROUND_CHEESE_STEP) {
