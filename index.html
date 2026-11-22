@@ -195,6 +195,13 @@ const CHEESE_PHOTOS = [{"aspect":0.9464,"surface":0.177,"sprite":"cheesePhoto1",
 const STARTING_CHEDDAR = ['cheesePhoto4', 'cheesePhoto5', 'cheesePhoto6']
   .map(sprite => CHEESE_PHOTOS.find(photo => photo.sprite === sprite));
 const LAST_STARTING_CHEDDAR_STEP = 5;
+const SLICED_CHEDDAR_NOTE_LINES = [
+  '<슬라이스 체다치즈>',
+  '영국 체더지방에서 유래한 치즈.',
+  '부드럽고 짭짤하며',
+  '잘 녹는 것이 특징이다.',
+  '1장에 400원.',
+];
 const CHEDDAR_NOTE_LINES = [
   '<체다치즈>',
   '개당 500원.',
@@ -311,7 +318,8 @@ const SILHOUETTE_SIZE = 48;
 const cheeseSilhouettes = new Map(Object.entries(CHEESE_MASK_DATA).map(([sprite, mask]) =>
   [sprite, Uint8Array.from(atob(mask), byte => byte.charCodeAt(0))]));
 const cheeseNotes = [
-  {photos: STARTING_CHEDDAR, lines: CHEDDAR_NOTE_LINES},
+  {photos: STARTING_CHEDDAR, lines: SLICED_CHEDDAR_NOTE_LINES, lastLevel: LAST_STARTING_CHEDDAR_STEP},
+  {photos: STARTING_CHEDDAR, lines: CHEDDAR_NOTE_LINES, firstLevel: LAST_STARTING_CHEDDAR_STEP + 1},
   {photos: [STACKED_CHEDDAR], lines: STACKED_CHEDDAR_NOTE_LINES},
   {photos: HOLEY_CHEESE, lines: EMMENTAL_NOTE_LINES},
   {photos: GOLDEN_CHEESE.slice(1), lines: AGED_GOUDA_NOTE_LINES},
@@ -340,7 +348,7 @@ function reset() {
 
 function nextCheesePhoto(level) {
   if (level <= LAST_STARTING_CHEDDAR_STEP) {
-    return STARTING_CHEDDAR[level % STARTING_CHEDDAR.length];
+    return STARTING_CHEDDAR[Math.max(0, level - 1) % STARTING_CHEDDAR.length];
   }
   if (level <= LAST_STACKED_CHEDDAR_STEP) {
     return STACKED_CHEDDAR;
@@ -375,7 +383,8 @@ function createPlatform(x, w, h, level, photo = nextCheesePhoto(level), maxHeigh
   const width = Math.min(w, (level === 0 ? 144 : maxHeight) / photo.aspect);
   const imageHeight = width * photo.aspect;
   const imageTop = h + imageHeight * photo.surface;
-  const note = cheeseNotes.find(note => note.photos.includes(photo));
+  const note = cheeseNotes.find(note => note.photos.includes(photo) &&
+    level >= (note.firstLevel ?? 0) && level <= (note.lastLevel ?? Infinity));
   if (note && note.count++ % CHEESES_PER_NOTE === 0) {
     note.group = {lines: note.lines, shown: false};
   }
