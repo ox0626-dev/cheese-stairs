@@ -253,7 +253,8 @@ function playJumpSound() {
   spring.connect(springVolume).connect(tone.frequency);
 
   volume.gain.setValueAtTime(.001, time);
-  volume.gain.exponentialRampToValueAtTime(.18, time + .017);
+  volume.gain.exponentialRampToValueAtTime(.58, time + .017);
+  volume.gain.exponentialRampToValueAtTime(.40, time + .085);
   volume.gain.exponentialRampToValueAtTime(.001, time + .29);
   tone.connect(volume).connect(audioContext.destination);
   tone.start(time);
