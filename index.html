@@ -262,6 +262,7 @@ const AGED_GOUDA_NOTE_LINES = [
 const GRUYERE = CHEESE_PHOTOS.find(photo => photo.sprite === 'cheesePhoto16');
 const BRIE = CHEESE_PHOTOS.find(photo => photo.sprite === 'cheesePhoto9');
 const LAST_GRUYERE_STEP = 25;
+const LAST_BRIE_STEP = 30;
 const GRUYERE_NOTE_LINES = [
   '<그뤼에르치즈>',
   '스위스의 대표적인 숙성 치즈.',
@@ -277,8 +278,14 @@ const BRIE_NOTE_LINES = [
   '풍미가 특징이다.',
   '100g당 약 7,000원',
 ];
+const EARLY_BRIE_NOTE_LINES = [
+  '<브리치즈>',
+  '프랑스의 대표적인 치즈.',
+  '하얀 곰팡이 껍질과 부드러운 속살.',
+  '고소하고 크리미한 풍미가 특징이다.',
+  '100g당 약6,300원',
+];
 const CHEESE_PILE = CHEESE_PHOTOS.find(photo => photo.sprite === 'cheesePhoto12');
-const LAST_CHEESE_PILE_STEP = 30;
 const CHEESE_PILE_NOTE_LINES = [
   '<모듬치즈>',
   '브리, 만체고,염소치즈등이 쌓인',
@@ -358,6 +365,8 @@ const cheeseNotes = [
   {photos: [GRUYERE], lines: GRUYERE_NOTE_LINES,
     firstLevel: LAST_EMMENTAL_STEP + 1, lastLevel: LAST_GRUYERE_STEP},
   {photos: GOLDEN_CHEESE.slice(1), lines: AGED_GOUDA_NOTE_LINES},
+  {photos: [BRIE], lines: EARLY_BRIE_NOTE_LINES,
+    firstLevel: LAST_GRUYERE_STEP + 1, lastLevel: LAST_BRIE_STEP},
   {photos: [BRIE], lines: BRIE_NOTE_LINES},
   {photos: [CHEESE_PILE], lines: CHEESE_PILE_NOTE_LINES},
 ];
@@ -400,8 +409,8 @@ function nextCheesePhoto(level) {
   if (level <= LAST_GRUYERE_STEP) {
     return GRUYERE;
   }
-  if (level <= LAST_CHEESE_PILE_STEP) {
-    return CHEESE_PILE;
+  if (level <= LAST_BRIE_STEP) {
+    return BRIE;
   }
   if (!cheeseBag.length) cheeseBag = shuffledCheesePhotos(CHEESE_PHOTOS);
   return cheeseBag.pop();
