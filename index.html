@@ -209,6 +209,11 @@ const CHEDDAR_NOTE_LINES = [
   '강한 맛과 단단한 형태를 띈다.',
 ];
 const STACKED_CHEDDAR = CHEESE_PHOTOS.find(photo => photo.sprite === 'cheesePhoto13');
+const EARLY_STACKED_CHEDDAR_NOTE_LINES = [
+  '<슬라이스 체다치즈 20겹>',
+  '겹겹이쌓아 20겹으로 만든 체다치즈.',
+  '1500kal.',
+];
 const STACKED_CHEDDAR_NOTE_LINES = [
   '<체다치즈 20겹>',
   '겹겹이 쌓아 20겹으로',
@@ -483,9 +488,10 @@ function addPlatforms() {
       platform.noteLines = null;
       if (!group || group.shown) continue;
       const neighbors = platforms.filter(other => other !== platform);
-      const fits = makeCaptionSpace(platform, neighbors, group.lines);
+      const lines = platform.wideCheddarCaption ? EARLY_STACKED_CHEDDAR_NOTE_LINES : group.lines;
+      const fits = makeCaptionSpace(platform, neighbors, lines);
       if (!fits) continue;
-      platform.noteLines = group.lines;
+      platform.noteLines = lines;
       group.shown = true;
     }
   }
