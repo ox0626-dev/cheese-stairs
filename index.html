@@ -14,8 +14,8 @@
   *,*::before,*::after{box-sizing:border-box}
   html,body{margin:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none;background:#103968}
   body{font-family:system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
-  main{position:fixed;inset:0;width:100%;height:100%;height:100dvh;overflow:hidden;isolation:isolate}
-  canvas{display:block;width:100%;height:100%;touch-action:none}
+  main{--safe-top:env(safe-area-inset-top,0px);--safe-right:env(safe-area-inset-right,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);position:fixed;top:var(--viewport-top,0px);inset-inline:0;height:100%;height:100dvh;height:var(--viewport-height,100dvh);overflow:hidden;isolation:isolate;background:linear-gradient(#123965,#4086b7 50%,#a5dbe8)}
+  canvas{position:absolute;inset:var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);display:block;width:calc(100% - var(--safe-left) - var(--safe-right));height:calc(100% - var(--safe-top) - var(--safe-bottom));touch-action:none}
   button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
   button:focus-visible{outline:3px solid #fff0ab;outline-offset:4px}
   .hud{position:absolute;top:calc(env(safe-area-inset-top) + 16px);left:calc(env(safe-area-inset-left) + 18px);right:calc(env(safe-area-inset-right) + 18px);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;pointer-events:none}
@@ -25,8 +25,8 @@
   .actions{display:flex;gap:7px;pointer-events:auto}
   .icon{display:grid;place-items:center;border:1px solid #a9d7ff69;background:#0d2d55df;border-radius:13px;width:42px;height:42px;padding:0;font-size:21px;line-height:1}
   .icon[hidden]{display:none}
-  .jump-hint{position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);font-size:12px;font-weight:750;text-align:center;background:#0b3058dc;color:#ffee9b;border:1px solid #a9d7ff68;border-radius:30px;padding:8px 9px;white-space:nowrap;pointer-events:none}
-  .message{position:absolute;bottom:calc(env(safe-area-inset-bottom) + 58px);left:50%;width:min(350px,calc(100% - 34px));transform:translateX(-50%);text-align:center;padding:19px 15px 16px;background:#0c2c52f2;border:1px solid #a9d7ff7d;border-radius:24px;box-shadow:0 16px 55px #0b284b62}
+  .jump-hint{position:absolute;bottom:calc(20px + var(--safe-bottom));left:calc(var(--safe-left) + 9px);right:calc(var(--safe-right) + 9px);width:max-content;max-width:calc(100% - var(--safe-left) - var(--safe-right) - 18px);margin-inline:auto;font-size:12px;font-weight:750;text-align:center;background:#0b3058dc;color:#ffee9b;border:1px solid #a9d7ff68;border-radius:30px;padding:8px 9px;pointer-events:none}
+  .message{--bottom-gap:58px;position:absolute;bottom:calc(var(--safe-bottom) + var(--bottom-gap));left:calc(var(--safe-left) + 12px);right:calc(var(--safe-right) + 12px);max-width:350px;max-height:calc(100% - var(--safe-top) - var(--safe-bottom) - var(--bottom-gap) - 86px);margin-inline:auto;overflow:auto;overscroll-behavior:contain;text-align:center;padding:19px 15px 16px;background:#0c2c52f2;border:1px solid #a9d7ff7d;border-radius:24px;box-shadow:0 16px 55px #0b284b62}
   .message[hidden]{display:none}
   h1{font-size:clamp(22px,6.4vw,32px);line-height:1.08;letter-spacing:-.055em;margin:0}
   .message p{font-size:14px;line-height:1.45;margin:9px 0 14px;color:#d9ecff}
@@ -34,7 +34,6 @@
   .start:active{transform:translateY(2px);box-shadow:0 2px 0 #c39a41}
   .start:disabled{opacity:.65;cursor:default}
   .message[hidden],.message [hidden]{display:none}
-  .message[data-mode="fallen"]{max-height:calc(100dvh - 110px);overflow:auto;overscroll-behavior:contain}
   .nickname-form{text-align:left;margin:0 0 12px}
   .nickname-form label{display:block;font-size:13px;font-weight:750;margin-bottom:5px}
   .nickname-form input,.nickname-form select{width:100%;font:inherit;font-size:16px;color:#172f4a;background:#f6fbff;border:0;border-radius:10px;padding:9px 11px;min-height:42px;user-select:text;-webkit-user-select:text}
@@ -43,13 +42,14 @@
   .message .game-status{color:#ffe797}
   .ranking{margin:0 0 12px}
   .ranking h2{font-size:17px;margin:0 0 7px}
-  .ranking ol{max-height:min(34dvh,260px);overflow:auto;overscroll-behavior:contain;margin:0;padding:0;list-style:none;text-align:left;touch-action:pan-y;font-variant-numeric:tabular-nums}
+  .ranking ol{max-height:min(34dvh,260px);overflow:auto;overscroll-behavior-y:auto;margin:0;padding:0;list-style:none;text-align:left;touch-action:pan-y;font-variant-numeric:tabular-nums}
   .ranking li{display:grid;grid-template-columns:2ch minmax(0,1fr) auto;align-items:center;gap:9px;padding:6px 8px;border-top:1px solid #a9d7ff35;font-size:13px}
   .ranking li span:nth-child(2){overflow-wrap:anywhere}
   .ranking li strong{color:#ffea87}
   .ranking li p{grid-column:1/-1;margin:2px 0}
   .change-nickname{margin-top:10px;border:0;background:none;text-decoration:underline;font-size:13px}
-  @media(max-height:490px){.message{bottom:49px;padding:12px}.message p{margin:5px 0 8px}.hud{top:8px}}
+  @media(max-height:490px){.message{--bottom-gap:12px;padding:12px}.message p{margin:5px 0 8px}.hud{top:calc(var(--safe-top) + 8px)}}
+  main[data-compact] .message{--bottom-gap:10px;padding:10px;max-height:calc(100% - var(--safe-top) - var(--safe-bottom) - 88px)}
 </style>
 </head>
 <body>
@@ -311,18 +311,37 @@ function addPlatforms() {
 }
 
 function resize() {
-  const box = game.getBoundingClientRect();
+  const box = canvas.getBoundingClientRect();
+  if (!box.width || !box.height) return;
+  const previousViewHeight = viewHeight;
   width = box.width;
   height = box.height;
-  if (!width || !height) return;
+  game.toggleAttribute('data-compact', height < 330);
   const ratio = Math.min(2.5, window.devicePixelRatio || 1);
   canvas.width = Math.round(width * ratio);
   canvas.height = Math.round(height * ratio);
   ctx.setTransform(ratio,0,0,ratio,0,0);
-  scale = Math.min(width / WIDTH, height / 540, 1.85);
+  // Leave room for the platform art on both sides of the playable lane.
+  scale = Math.min(width / (WIDTH + 24), height / 540, 1.85);
   offset = (width - WIDTH * scale) / 2;
   viewHeight = height / scale;
-  if (mode === 'ready' && player) reset();
+  if (mode === 'ready' && player) {
+    camera = START - viewHeight * .315;
+    addPlatforms();
+  } else if (previousViewHeight && (mode === 'playing' || mode === 'paused')) {
+    camera += (previousViewHeight - viewHeight) * .43;
+  }
+}
+
+function fitVisualViewport() {
+  const viewport = window.visualViewport;
+  if (viewport && viewport.scale === 1 && viewport.height > 0) {
+    game.style.setProperty('--viewport-height', `${viewport.height}px`);
+    game.style.setProperty('--viewport-top', `${viewport.offsetTop}px`);
+  } else {
+    game.style.removeProperty('--viewport-height');
+    game.style.removeProperty('--viewport-top');
+  }
 }
 
 function setMode(next) {
@@ -839,7 +858,10 @@ if (game.requestFullscreen && document.fullscreenEnabled) {
     fullscreen.title=label;
   });
 }
-new ResizeObserver(resize).observe(game);
+window.visualViewport?.addEventListener('resize', fitVisualViewport);
+window.visualViewport?.addEventListener('scroll', fitVisualViewport);
+fitVisualViewport();
+new ResizeObserver(resize).observe(canvas);
 resize();
 reset();
 
