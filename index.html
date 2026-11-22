@@ -34,7 +34,7 @@
 <main id="game" aria-label="치즈 계단 움직임 테스트">
   <canvas id="field" aria-label="생쥐가 치즈 계단을 올라가는 화면"></canvas>
   <div class="hud">
-    <div class="score"><span>최고 도달</span><strong id="score">0</strong><span>번째 계단</span></div>
+    <div class="score"><span>최고 도달</span><strong id="score">0</strong><span>번째 치즈</span></div>
     <div class="actions">
       <button type="button" id="fullscreen" class="icon" aria-label="전체 화면" title="전체 화면" hidden>⛶</button>
       <button type="button" id="pause" class="icon" aria-label="일시 정지" title="일시 정지" hidden>Ⅱ</button>
@@ -194,8 +194,8 @@ function setMode(next) {
     description.textContent = '이어서 치즈 계단을 올라가세요.';
     start.textContent = '계속하기';
   } else if (next === 'fallen') {
-    title.textContent = '계단에서 떨어졌어요';
-    description.textContent = '이번에 도달한 계단 ' + best + '개';
+    title.textContent = '치즈에서 떨어졌어요.';
+    description.textContent = '이번에 도달한 치즈 ' + best + '개';
     start.textContent = '다시 시작';
   }
 }
