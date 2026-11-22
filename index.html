@@ -189,7 +189,8 @@ const START = 170;
 const SOLE_INSET = 4;
 const MUSIC_START_TIME = 12;
 const CHEESE_TIP_START = 3;
-const CHEESE_TIP_END = 5.5;
+const CHEESE_TIP_DURATION = 2.5;
+const CHEESE_TIP_STEPS = [5, 11, 16, 22, 27, 33];
 const CHEESE_PHOTOS = [{"aspect":0.9464,"surface":0.177,"sprite":"cheesePhoto1","rotated":false},{"aspect":0.9219,"surface":0.08,"sprite":"cheesePhoto2","rotated":false},{"aspect":0.6496,"surface":0.08,"sprite":"cheesePhoto3","rotated":false},{"aspect":0.5491,"surface":0.08,"sprite":"cheesePhoto4","rotated":false},{"aspect":0.6674,"surface":0.08,"sprite":"cheesePhoto5","rotated":false},{"aspect":0.6825,"surface":0.08,"sprite":"cheesePhoto6","rotated":false},{"aspect":0.9704,"surface":0.08,"sprite":"cheesePhoto7","rotated":false},{"aspect":0.7254,"surface":0.08,"sprite":"cheesePhoto8","rotated":false},{"aspect":0.7221,"surface":0.08,"sprite":"cheesePhoto9","rotated":false},{"aspect":0.6161,"surface":0.141,"sprite":"cheesePhoto10","rotated":false},{"aspect":0.7121,"surface":0.219,"sprite":"cheesePhoto11","rotated":false},{"aspect":0.6786,"surface":0.125,"sprite":"cheesePhoto12","rotated":true},{"aspect":0.8638,"surface":0.08,"sprite":"cheesePhoto13","rotated":false},{"aspect":0.9409,"surface":0.08,"sprite":"cheesePhoto14","rotated":false},{"aspect":0.8571,"surface":0.08,"sprite":"cheesePhoto15","rotated":false},{"aspect":0.7098,"surface":0.08,"sprite":"cheesePhoto16","rotated":false}];
 
 const STARTING_CHEDDAR = ['cheesePhoto4', 'cheesePhoto5', 'cheesePhoto6']
@@ -252,6 +253,15 @@ const EMMENTAL_NOTE_LINES = [
 ];
 const GOLDEN_CHEESE = ['cheesePhoto2', 'cheesePhoto3', 'cheesePhoto15', 'cheesePhoto16']
   .map(sprite => CHEESE_PHOTOS.find(photo => photo.sprite === sprite));
+const AGED_GOUDA = CHEESE_PHOTOS.find(photo => photo.sprite === 'cheesePhoto15');
+const LAST_AGED_GOUDA_STEP = 35;
+const EARLY_AGED_GOUDA_NOTE_LINES = [
+  '<숙성 고다치즈>',
+  '네덜란드의 대표적인 치즈.',
+  '단단한 식감과 캐러멜,',
+  '견과류 풍미가 있다.',
+  '100g당 약7,500원',
+];
 const AGED_GOUDA_NOTE_LINES = [
   '<숙성 고다치즈>',
   '네덜란드의 대표적인 치즈.',
@@ -327,7 +337,7 @@ let cheeseBag = [];
 let emmentalBag = [];
 const PLATFORM_WIDTH = 150;
 const EXTRA_PLATFORM_WIDTH = 140;
-const SMALL_CHEDDAR_WIDTH = 128;
+const STACKED_CHEDDAR_WIDTH = 174;
 const START_PLATFORM_WIDTH = 176;
 const PLATFORM_IMAGE_REACH = START_PLATFORM_WIDTH * Math.max(...CHEESE_PHOTOS.map(photo => photo.aspect));
 const CHEESES_PER_NOTE = 3;
@@ -364,6 +374,8 @@ const cheeseNotes = [
   {photos: HOLEY_CHEESE, lines: EMMENTAL_NOTE_LINES},
   {photos: [GRUYERE], lines: GRUYERE_NOTE_LINES,
     firstLevel: LAST_EMMENTAL_STEP + 1, lastLevel: LAST_GRUYERE_STEP},
+  {photos: [AGED_GOUDA], lines: EARLY_AGED_GOUDA_NOTE_LINES,
+    firstLevel: LAST_BRIE_STEP + 1, lastLevel: LAST_AGED_GOUDA_STEP},
   {photos: GOLDEN_CHEESE.slice(1), lines: AGED_GOUDA_NOTE_LINES},
   {photos: [BRIE], lines: EARLY_BRIE_NOTE_LINES,
     firstLevel: LAST_GRUYERE_STEP + 1, lastLevel: LAST_BRIE_STEP},
@@ -372,9 +384,11 @@ const cheeseNotes = [
 ];
 let mode = 'ready';
 let elapsed = 0;
+let cheeseTipUntil = 0;
 let audioContext, musicGain, effectsGain;
 
 function reset() {
+  cheeseTipUntil = 0;
   cheeseBag = [];
   emmentalBag = [];
   for (const note of cheeseNotes) note.count = 0;
@@ -411,6 +425,9 @@ function nextCheesePhoto(level) {
   }
   if (level <= LAST_BRIE_STEP) {
     return BRIE;
+  }
+  if (level <= LAST_AGED_GOUDA_STEP) {
+    return AGED_GOUDA;
   }
   if (!cheeseBag.length) cheeseBag = shuffledCheesePhotos(CHEESE_PHOTOS);
   return cheeseBag.pop();
@@ -475,8 +492,7 @@ function cheeseImagesOverlap(first, second) {
 
 function resizeCheese(cheese, width) {
   const factor = width / cheese.w;
-  const x = cheese.pairSide ? cheese.pairSeam + cheese.pairSide * width / 2 :
-    Math.max(width / 2, Math.min(WIDTH - width / 2, cheese.x));
+  const x = Math.max(width / 2, Math.min(WIDTH - width / 2, cheese.x));
   return {
     ...cheese, x, w: width,
     imageHeight: cheese.imageHeight * factor,
@@ -485,13 +501,13 @@ function resizeCheese(cheese, width) {
 }
 
 function makeCaptionSpace(platform, neighbors) {
-  const offsets = platform.pairSide ? [0] : [0, -18, 18, -30, 30];
+  const offsets = [0, -18, 18, -30, 30];
   for (const offset of offsets) {
     const candidate = resizeCheese({...platform, x: platform.x + offset}, platform.w);
     const touching = neighbors.filter(other => cheeseImagesOverlap(candidate, other));
     if (touching.some(other => other.noteLines)) continue;
     const adjusted = new Map(touching.map(other => [other, resizeCheese(other,
-      Math.min(other.w, other.pairSide && !other.wideCheddarCaption ? 122 : 132))]));
+      other.wideCheddarCaption ? other.w : Math.min(other.w, 132))]));
     if (neighbors.some(other => cheeseImagesOverlap(candidate, adjusted.get(other) || other))) continue;
     if ([...adjusted.entries()].some(([other, resized]) =>
       neighbors.some(captioned => captioned !== other && captioned.noteLines && cheeseImagesOverlap(resized, captioned)))) continue;
@@ -533,16 +549,10 @@ function addPlatforms() {
 
 function addStepPlatforms(step) {
   if (level > LAST_STARTING_CHEDDAR_STEP && level <= LAST_STACKED_CHEDDAR_STEP) {
-    const center = Math.max(.44, Math.min(.56, step.x));
-    const large = createPlatform(center * WIDTH, PLATFORM_WIDTH, lastHeight, level, STACKED_CHEDDAR);
-    const small = createPlatform(center * WIDTH, SMALL_CHEDDAR_WIDTH, lastHeight, level, STACKED_CHEDDAR);
-    const seam = large.x;
-    const side = level % 2 === 0 ? -1 : 1;
-    Object.assign(large, {x: seam + side * large.w / 2, pairSide: side, pairSeam: seam});
-    Object.assign(small, {x: seam - side * small.w / 2, pairSide: -side, pairSeam: seam});
-    large.wideCheddarCaption = true;
-    small.noteLines = null;
-    platforms.push(large, small);
+    const x = (level % 2 === 0 ? .77 : .23) * WIDTH;
+    const cheddar = createPlatform(x, STACKED_CHEDDAR_WIDTH, lastHeight, level, STACKED_CHEDDAR);
+    cheddar.wideCheddarCaption = true;
+    platforms.push(cheddar);
     return;
   }
 
@@ -853,9 +863,7 @@ backgroundMusic.addEventListener('ended', () => {
 });
 
 function standingOn(platform, x) {
-  const left = platform.pairSide === 1 ? platform.pairSeam : platform.x - platform.w / 2 + SOLE_INSET;
-  const right = platform.pairSide === -1 ? platform.pairSeam : platform.x + platform.w / 2 - SOLE_INSET;
-  return x >= left && x <= right;
+  return Math.abs(x - platform.x) <= platform.w / 2 - SOLE_INSET;
 }
 
 function dust(x,h,amount,color) {
@@ -925,8 +933,19 @@ function playJumpSound() {
 }
 
 function updateCheeseTip() {
-  const visible = mode === 'playing' && elapsed >= CHEESE_TIP_START && elapsed < CHEESE_TIP_END;
+  const intro = elapsed >= CHEESE_TIP_START && elapsed < CHEESE_TIP_START + CHEESE_TIP_DURATION;
+  const visible = mode === 'playing' && (intro || elapsed < cheeseTipUntil);
   if (cheeseTip.hidden === visible) cheeseTip.hidden = !visible;
+}
+
+function reachCheese(step) {
+  if (step <= best) return;
+  if (CHEESE_TIP_STEPS.some(target => best < target && step >= target)) {
+    cheeseTipUntil = elapsed + CHEESE_TIP_DURATION;
+    updateCheeseTip();
+  }
+  best = step;
+  score.textContent = String(best);
 }
 
 function update(dt) {
@@ -984,10 +1003,7 @@ function update(dt) {
         player.ground = landing;
         player.vy = player.air = player.coyote = 0;
         dust(nextX,landing.h,5,'#fff0ad');
-        if (landing.level > best) {
-          best = landing.level;
-          score.textContent = String(best);
-        }
+        reachCheese(landing.level);
       }
     }
   }
