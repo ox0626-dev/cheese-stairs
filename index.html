@@ -388,7 +388,7 @@ function cheeseImagesOverlap(first, second) {
   const right = Math.min(firstLeft + first.w, secondLeft + second.w);
   const bottom = Math.max(first.imageTop - first.imageHeight, second.imageTop - second.imageHeight);
   const top = Math.min(first.imageTop, second.imageTop);
-  if (left >= right || bottom >= top) return false;
+  if (right - left < 1e-7 || bottom >= top) return false;
   const firstMask = cheeseSilhouettes.get(first.photo.sprite);
   const secondMask = cheeseSilhouettes.get(second.photo.sprite);
   if (!firstMask || !secondMask) return true;
@@ -420,6 +420,7 @@ function makeCaptionSpace(platform, neighbors) {
   if (!touching.length) return true;
   const scaled = (cheese, factor) => ({
     ...cheese,
+    x: cheese.pairSide ? cheese.pairSeam + cheese.pairSide * cheese.w * factor / 2 : cheese.x,
     w: cheese.w * factor,
     imageHeight: cheese.imageHeight * factor,
     imageTop: cheese.h + (cheese.imageTop - cheese.h) * factor,
@@ -475,8 +476,11 @@ function addPlatforms() {
 function addStepPlatforms(step) {
   if (level > LAST_STARTING_CHEDDAR_STEP && level <= LAST_STACKED_CHEDDAR_STEP) {
     const center = Math.max(.40, Math.min(.60, step.x));
-    const large = createPlatform((center - .13) * WIDTH, .37 * WIDTH, lastHeight, level, STACKED_CHEDDAR, PAIRED_CHEDDAR_IMAGE_HEIGHT);
-    const small = createPlatform((center + .155) * WIDTH, .205 * WIDTH, lastHeight, level, STACKED_CHEDDAR);
+    const large = createPlatform(center * WIDTH, .37 * WIDTH, lastHeight, level, STACKED_CHEDDAR, PAIRED_CHEDDAR_IMAGE_HEIGHT);
+    const small = createPlatform(center * WIDTH, .205 * WIDTH, lastHeight, level, STACKED_CHEDDAR);
+    const seam = large.x;
+    Object.assign(large, {x: seam - large.w / 2, pairSide: -1, pairSeam: seam});
+    Object.assign(small, {x: seam + small.w / 2, pairSide: 1, pairSeam: seam});
     large.wideCheddarCaption = true;
     small.noteLines = null;
     platforms.push(large, small);
@@ -790,7 +794,9 @@ backgroundMusic.addEventListener('ended', () => {
 });
 
 function standingOn(platform, x) {
-  return Math.abs(x - platform.x) <= platform.w / 2 - SOLE_INSET;
+  const left = platform.pairSide === 1 ? platform.pairSeam : platform.x - platform.w / 2 + SOLE_INSET;
+  const right = platform.pairSide === -1 ? platform.pairSeam : platform.x + platform.w / 2 - SOLE_INSET;
+  return x >= left && x <= right;
 }
 
 function dust(x,h,amount,color) {
