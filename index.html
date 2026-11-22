@@ -193,7 +193,7 @@ const CAMERA_SPEED = 19;
 const MAX_STEP_GAP = 112;
 const MAX_GRUYERE_STEP_GAP = 108;
 const MAX_PLATFORM_SHIFT = 138;
-const STACKED_CHEDDAR_GAP = 102;
+const STACKED_CHEDDAR_GAP = 96;
 const MUSIC_START_TIME = 12;
 const CHEESE_TIP_DURATION = 2.5;
 const VEST_STEP = 20;
@@ -225,8 +225,11 @@ const SLICED_CHEDDAR_NOTE_LINES = [
 ];
 const STACKED_CHEDDAR = CHEESE_PHOTOS.find(photo => photo.sprite === 'cheesePhoto13');
 const STACKED_CHEDDAR_NOTE_LINES = [
-  '<슬라이스 체다치즈 20겹>',
-  '겹겹이쌓아 20겹으로 만든 체다치즈.',
+  '<슬라이스',
+  '체다치즈 20겹>',
+  '겹겹이 쌓아',
+  '20겹으로 만든',
+  '체다치즈.',
   '1500kal.',
 ];
 const LAST_STACKED_CHEDDAR_STEP = 10;
@@ -538,7 +541,7 @@ function addPlatforms() {
 
 function addStepPlatforms(step) {
   if (level > LAST_STARTING_CHEDDAR_STEP && level <= LAST_STACKED_CHEDDAR_STEP) {
-    const x = (level % 2 === 0 ? .67 : .33) * WIDTH;
+    const x = (level % 2 === 0 ? .66 : .34) * WIDTH;
     platforms.push(createPlatform(x, STACKED_CHEDDAR_WIDTH, lastHeight, level, STACKED_CHEDDAR));
     return;
   }
