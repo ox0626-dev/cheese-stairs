@@ -113,6 +113,7 @@ let width, height, scale, offset, viewHeight;
 let player, platforms, lastHeight, level, flightIndex, stepIndex, camera, best, sparks;
 let mode = 'ready';
 let elapsed = 0;
+let audioContext;
 
 function reset() {
   const base = {x:195,w:314,h:START,art:'base',level:0};
@@ -179,6 +180,7 @@ function setMode(next) {
 
 function startPlaying() {
   if (mode === 'playing') return;
+  unlockAudio();
   if (mode !== 'paused') reset();
   start.blur();
   setMode('playing');
@@ -196,12 +198,50 @@ function dust(x,h,amount,color) {
 }
 
 function requestJump(direction) {
+  unlockAudio();
   if (player.push > 0 || (!player.ground && player.coyote === 0)) {
     player.dir = direction;
     return;
   }
   player.jumpDir = direction;
   player.buffer = .14;
+}
+
+function unlockAudio() {
+  const AudioContextType = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextType) return;
+  audioContext ||= new AudioContextType();
+  if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
+}
+
+function playJumpSound() {
+  if (audioContext?.state !== 'running') return;
+  const time = audioContext.currentTime;
+  const tone = audioContext.createOscillator();
+  const spring = audioContext.createOscillator();
+  const springVolume = audioContext.createGain();
+  const volume = audioContext.createGain();
+
+  tone.type = 'triangle';
+  tone.frequency.setValueAtTime(260, time);
+  tone.frequency.exponentialRampToValueAtTime(760, time + .075);
+  tone.frequency.exponentialRampToValueAtTime(420, time + .27);
+
+  spring.type = 'sine';
+  spring.frequency.setValueAtTime(28, time);
+  spring.frequency.exponentialRampToValueAtTime(11, time + .24);
+  springVolume.gain.setValueAtTime(65, time);
+  springVolume.gain.exponentialRampToValueAtTime(4, time + .24);
+  spring.connect(springVolume).connect(tone.frequency);
+
+  volume.gain.setValueAtTime(.001, time);
+  volume.gain.exponentialRampToValueAtTime(.18, time + .017);
+  volume.gain.exponentialRampToValueAtTime(.001, time + .29);
+  tone.connect(volume).connect(audioContext.destination);
+  tone.start(time);
+  spring.start(time);
+  tone.stop(time + .30);
+  spring.stop(time + .30);
 }
 
 function update(dt) {
@@ -233,6 +273,7 @@ function update(dt) {
       player.coyote = 0;
       player.air = 0;
       player.vy = JUMP_SPEED;
+      playJumpSound();
       dust(nextX,player.h,7,'#fff0ad');
     }
   }
@@ -346,9 +387,15 @@ function drawPlatform(platform) {
   ctx.drawImage(image,x,y-h*.28,platform.w,h);
 }
 
-function drawMouse() {
+function drawMouse(now) {
   const airborne = !player.ground && !player.push;
-  const y = screenY(player.h);
+  const stoppedAtWall = player.dir < 0 ? player.x <= EDGE : player.x >= WIDTH - EDGE;
+  const walking = mode === 'playing' && player.ground && !player.push && !stoppedAtWall;
+  const resting = mode === 'ready' || mode === 'paused' || (player.ground && !player.push && stoppedAtWall);
+  const bounce = walking
+    ? 2.7 * Math.sin(2 * Math.PI * player.runDistance / RUN_CYCLE_DISTANCE) ** 2
+    : resting ? 1.8 * (.5 - .5 * Math.cos(now * .009)) : 0;
+  const y = screenY(player.h) - bounce;
   ctx.save();
   ctx.translate(player.x,y);
   if (player.push > 0) {
@@ -357,7 +404,7 @@ function drawMouse() {
   } else if (airborne) {
     drawPose(art[player.vy > 480 && player.air < .11 ? 'jumpPush' : 'jumpOpen'], -player.dir, 0, 1);
   } else {
-    drawRun();
+    drawRun(walking);
   }
   ctx.restore();
 }
@@ -372,10 +419,9 @@ function drawPose(image,orientation,bounce,stretch) {
   ctx.restore();
 }
 
-function drawRun() {
-  const stoppedAtWall = player.dir < 0 ? player.x <= EDGE : player.x >= WIDTH - EDGE;
+function drawRun(walking) {
   const frameIndex = Math.floor(player.runDistance * WALK_FRAMES.length / RUN_CYCLE_DISTANCE);
-  const frame = mode === 'ready' || stoppedAtWall ? STANDING_FRAME : WALK_FRAMES[frameIndex];
+  const frame = walking ? WALK_FRAMES[frameIndex] : STANDING_FRAME;
   const image = art[frame.sprite] || art.walk;
   if (!image) return;
   const origin = art[frame.sprite] ? frame : STANDING_FRAME;
@@ -388,7 +434,7 @@ function drawRun() {
   ctx.restore();
 }
 
-function render() {
+function render(now) {
   if (!width || !height) return;
   sky();
   ctx.save();
@@ -403,7 +449,7 @@ function render() {
     ctx.fill();
   }
   ctx.globalAlpha = 1;
-  drawMouse();
+  drawMouse(now);
   ctx.restore();
 }
 
@@ -473,7 +519,7 @@ function frame(now) {
   } else {
     remainder = 0;
   }
-  render();
+  render(now);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
