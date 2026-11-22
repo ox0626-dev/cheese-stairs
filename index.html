@@ -138,6 +138,9 @@ const LAST_HOLEY_CHEESE_STEP = 15;
 const GOLDEN_CHEESE = ['cheesePhoto2', 'cheesePhoto3', 'cheesePhoto15', 'cheesePhoto16']
   .map(sprite => CHEESE_PHOTOS.find(photo => photo.sprite === sprite));
 const LAST_GOLDEN_CHEESE_STEP = 20;
+const ROUND_CHEESE = ['cheesePhoto8', 'cheesePhoto9']
+  .map(sprite => CHEESE_PHOTOS.find(photo => photo.sprite === sprite));
+const LAST_ROUND_CHEESE_STEP = 25;
 
 const flights = [
   [
@@ -203,6 +206,10 @@ function nextCheesePhoto(level) {
   if (level <= LAST_GOLDEN_CHEESE_STEP) {
     const index = level - LAST_HOLEY_CHEESE_STEP - 1;
     return GOLDEN_CHEESE[index % GOLDEN_CHEESE.length];
+  }
+  if (level <= LAST_ROUND_CHEESE_STEP) {
+    const index = level - LAST_GOLDEN_CHEESE_STEP - 1;
+    return ROUND_CHEESE[index % ROUND_CHEESE.length];
   }
   if (!cheeseBag.length) {
     cheeseBag = CHEESE_PHOTOS.slice();
