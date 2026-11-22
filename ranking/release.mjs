@@ -69,9 +69,12 @@ async function ranking(request) {
       for (let attempt = 0; attempt < 2; attempt++) {
         const claim = await db.sql(`
           INSERT INTO profiles (nickname_key, nickname, device_id, slot)
-          SELECT $1, $2, $3::uuid, slot FROM generate_series(1, 2) AS slot
-          WHERE NOT EXISTS (SELECT 1 FROM profiles WHERE device_id = $3::uuid AND profiles.slot = slot)
-          ORDER BY slot LIMIT 1 ON CONFLICT DO NOTHING RETURNING nickname_key
+          SELECT $1, $2, $3::uuid, candidate.slot
+          FROM generate_series(1, 2) AS candidate(slot)
+          WHERE NOT EXISTS (
+            SELECT 1 FROM profiles WHERE device_id = $3::uuid AND profiles.slot = candidate.slot
+          )
+          ORDER BY candidate.slot LIMIT 1 ON CONFLICT DO NOTHING RETURNING nickname_key
         `, [key, name, device]);
         if (claim.rows.length) break;
       }
