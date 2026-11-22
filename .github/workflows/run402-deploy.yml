@@ -1,0 +1,28 @@
+name: Update Cheese Stairs ranking
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [ranking/release.mjs]
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: cheese-stairs-ranking
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Update the existing ranking service
+        working-directory: ranking
+        env:
+          RUN402_TELEMETRY: "0"
+        run: |
+          node release.mjs
+          node -e 'const fs = require("node:fs"); const m = JSON.parse(fs.readFileSync("run402.json")); delete m.verify; fs.writeFileSync("run402.json", JSON.stringify(m));'
+          npx --yes run402@4.126.1 deploy --manifest run402.json --project prj_1795339221833_0189 < /dev/null
