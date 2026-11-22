@@ -233,6 +233,15 @@ const BLOCK_CHEDDAR_NOTE_LINES = [
 ];
 const HOLEY_CHEESE = ['cheesePhoto1', 'cheesePhoto7', 'cheesePhoto11', 'cheesePhoto14']
   .map(sprite => CHEESE_PHOTOS.find(photo => photo.sprite === sprite));
+const LAST_EMMENTAL_STEP = 20;
+const EARLY_EMMENTAL_NOTE_LINES = [
+  '<에멘탈치즈>',
+  '크고 둥근 구멍이 송송 뚫린',
+  '스위스의 대표적인 치즈.',
+  '고소하고 부드러우며',
+  '은은한 단맛이 특징이다.',
+  '100g당 약5,000원',
+];
 const EMMENTAL_NOTE_LINES = [
   '<에멘탈치즈>',
   '구멍이 여러 개나 있는',
@@ -243,7 +252,6 @@ const EMMENTAL_NOTE_LINES = [
 ];
 const GOLDEN_CHEESE = ['cheesePhoto2', 'cheesePhoto3', 'cheesePhoto15', 'cheesePhoto16']
   .map(sprite => CHEESE_PHOTOS.find(photo => photo.sprite === sprite));
-const LAST_GOLDEN_CHEESE_STEP = 20;
 const AGED_GOUDA_NOTE_LINES = [
   '<숙성 고다치즈>',
   '네덜란드의 대표적인 치즈.',
@@ -303,6 +311,7 @@ const flights = [
 let width, height, scale, offset, viewHeight;
 let player, platforms, lastHeight, level, flightIndex, stepIndex, camera, best, sparks;
 let cheeseBag = [];
+let emmentalBag = [];
 const MAX_PLATFORM_IMAGE_HEIGHT = 100;
 const PAIRED_CHEDDAR_IMAGE_HEIGHT = 124;
 const CAPTION_MIN_WIDTH = 126;
@@ -337,6 +346,8 @@ const cheeseNotes = [
   {photos: [STACKED_CHEDDAR], lines: STACKED_CHEDDAR_NOTE_LINES},
   {photos: BLOCK_CHEDDAR, lines: BLOCK_CHEDDAR_NOTE_LINES,
     firstLevel: LAST_STACKED_CHEDDAR_STEP + 1, lastLevel: LAST_BLOCK_CHEDDAR_STEP},
+  {photos: HOLEY_CHEESE, lines: EARLY_EMMENTAL_NOTE_LINES,
+    firstLevel: LAST_BLOCK_CHEDDAR_STEP + 1, lastLevel: LAST_EMMENTAL_STEP},
   {photos: HOLEY_CHEESE, lines: EMMENTAL_NOTE_LINES},
   {photos: GOLDEN_CHEESE.slice(1), lines: AGED_GOUDA_NOTE_LINES},
   {photos: [ROUND_CHEESE[1]], lines: BRIE_NOTE_LINES},
@@ -348,6 +359,7 @@ let audioContext, musicGain, effectsGain;
 
 function reset() {
   cheeseBag = [];
+  emmentalBag = [];
   for (const note of cheeseNotes) note.count = 0;
   const base = createPlatform(195,314,START,0);
   player = {
@@ -373,25 +385,28 @@ function nextCheesePhoto(level) {
     const index = level - LAST_STACKED_CHEDDAR_STEP - 1;
     return BLOCK_CHEDDAR[index % BLOCK_CHEDDAR.length];
   }
-  if (level <= LAST_GOLDEN_CHEESE_STEP) {
-    const index = level - LAST_BLOCK_CHEDDAR_STEP - 1;
-    return GOLDEN_CHEESE[index % GOLDEN_CHEESE.length];
+  if (level <= LAST_EMMENTAL_STEP) {
+    if (!emmentalBag.length) emmentalBag = shuffledCheesePhotos(HOLEY_CHEESE);
+    return emmentalBag.pop();
   }
   if (level <= LAST_ROUND_CHEESE_STEP) {
-    const index = level - LAST_GOLDEN_CHEESE_STEP - 1;
+    const index = level - LAST_EMMENTAL_STEP - 1;
     return ROUND_CHEESE[index % ROUND_CHEESE.length];
   }
   if (level <= LAST_CHEESE_PILE_STEP) {
     return CHEESE_PILE;
   }
-  if (!cheeseBag.length) {
-    cheeseBag = CHEESE_PHOTOS.slice();
-    for (let i = cheeseBag.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [cheeseBag[i], cheeseBag[j]] = [cheeseBag[j], cheeseBag[i]];
-    }
-  }
+  if (!cheeseBag.length) cheeseBag = shuffledCheesePhotos(CHEESE_PHOTOS);
   return cheeseBag.pop();
+}
+
+function shuffledCheesePhotos(photos) {
+  const shuffled = photos.slice();
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
 }
 
 function createPlatform(x, w, h, level, photo = nextCheesePhoto(level), maxHeight = MAX_PLATFORM_IMAGE_HEIGHT) {
