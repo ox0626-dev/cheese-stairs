@@ -284,7 +284,9 @@ let player, platforms, lastHeight, level, flightIndex, stepIndex, camera, best, 
 let cheeseBag = [];
 const MAX_PLATFORM_IMAGE_HEIGHT = 100;
 const PAIRED_CHEDDAR_IMAGE_HEIGHT = 124;
-const PAIRED_CHEDDAR_MIN_WIDTH = 100;
+const CAPTION_MIN_WIDTH = 126;
+const CAPTION_MAX_WIDTH = 205;
+const CAPTION_IMAGE_REACH = CAPTION_MAX_WIDTH * Math.max(...CHEESE_PHOTOS.map(photo => photo.aspect));
 const CHEESES_PER_NOTE = 3;
 // Each photo has a 48 by 48 alpha mask packed one pixel per bit.
 const CHEESE_MASK_DATA = {
@@ -378,7 +380,7 @@ function createPlatform(x, w, h, level, photo = nextCheesePhoto(level), maxHeigh
     note.group = {lines: note.lines, shown: false};
   }
   return {x: x + jitter, w: width, h, level, photo, imageHeight, imageTop,
-    noteGroup: note?.group, endsNoteGroup: note?.count % CHEESES_PER_NOTE === 0};
+    noteGroup: note?.group};
 }
 
 function cheeseImagesOverlap(first, second) {
@@ -415,37 +417,45 @@ function cheeseImagesOverlap(first, second) {
   return false;
 }
 
-function makeCaptionSpace(platform, neighbors) {
-  const touching = neighbors.filter(other => cheeseImagesOverlap(platform, other));
-  if (!touching.length) return true;
-  const scaled = (cheese, factor) => ({
-    ...cheese,
-    x: cheese.pairSide ? cheese.pairSeam + cheese.pairSide * cheese.w * factor / 2 : cheese.x,
-    w: cheese.w * factor,
+function resizeCheese(cheese, width) {
+  const factor = width / cheese.w;
+  const x = cheese.pairSide ? cheese.pairSeam + cheese.pairSide * width / 2 :
+    Math.max(width / 2, Math.min(WIDTH - width / 2, cheese.x));
+  return {
+    ...cheese, x, w: width,
     imageHeight: cheese.imageHeight * factor,
     imageTop: cheese.h + (cheese.imageTop - cheese.h) * factor,
-  });
+  };
+}
 
-  // Prefer a small adjustment to the third cheese. Only resize its neighbors if needed.
-  for (const factor of [.96, .90, .82, .72, .60, .46]) {
-    const candidate = scaled(platform, platform.wideCheddarCaption ? Math.max(factor, PAIRED_CHEDDAR_MIN_WIDTH / platform.w) : factor);
-    if (!neighbors.some(other => cheeseImagesOverlap(candidate, other))) {
-      Object.assign(platform, candidate);
-      return true;
-    }
-    const smallerNeighbors = new Map(touching.map(other => [other, scaled(other,
-      other.wideCheddarCaption ? Math.max(factor, PAIRED_CHEDDAR_MIN_WIDTH / other.w) : factor)]));
-    if (!neighbors.some(other => cheeseImagesOverlap(candidate, smallerNeighbors.get(other) || other))) {
-      Object.assign(platform, candidate);
-      for (const [other, smaller] of smallerNeighbors) Object.assign(other, smaller);
-      return true;
+function makeCaptionSpace(platform, neighbors, lines) {
+  const pairRoom = platform.pairSide === -1 ? platform.pairSeam : WIDTH - platform.pairSeam;
+  const maxWidth = platform.pairSide ? Math.min(CAPTION_MAX_WIDTH, pairRoom) : CAPTION_MAX_WIDTH;
+  const targetWidth = Math.min(maxWidth, Math.max(180, (lines.length * 20 + 12) / platform.photo.aspect));
+  const minWidth = Math.min(maxWidth, CAPTION_MIN_WIDTH);
+  for (const width of [targetWidth, (targetWidth + minWidth) / 2, minWidth]) {
+    const offsets = platform.pairSide ? [0] : [0, -20, 20, -38, 38];
+    for (const offset of offsets) {
+      const enlarged = resizeCheese({...platform, x: platform.x + offset}, width);
+      const touching = neighbors.filter(other => cheeseImagesOverlap(enlarged, other));
+      if (touching.some(other => other.noteLines)) continue;
+      for (const factor of [1, .9, .75, .6, .46]) {
+        const smaller = new Map(touching.map(other => [other, resizeCheese(other,
+          Math.max(other.wideCheddarCaption ? 80 : 0, other.w * factor))]));
+        if (neighbors.some(other => cheeseImagesOverlap(enlarged, smaller.get(other) || other))) continue;
+        if ([...smaller.entries()].some(([other, candidate]) =>
+          neighbors.some(captioned => captioned !== other && captioned.noteLines && cheeseImagesOverlap(candidate, captioned)))) continue;
+        Object.assign(platform, enlarged);
+        for (const [other, resized] of smaller) Object.assign(other, resized);
+        return true;
+      }
     }
   }
   return false;
 }
 
 function addPlatforms() {
-  while (lastHeight < camera + viewHeight + 270) {
+  while (lastHeight < camera + viewHeight + 2 * CAPTION_IMAGE_REACH + 120) {
     const flight = flights[flightIndex];
     const step = flight[stepIndex++];
     lastHeight += step.gap;
@@ -457,15 +467,14 @@ function addPlatforms() {
     }
   }
   // New platforms are higher than lastHeight, but their images can extend below it.
-  const settledImageTop = lastHeight - PAIRED_CHEDDAR_IMAGE_HEIGHT;
+  const settledImageTop = lastHeight - 1.5 * CAPTION_IMAGE_REACH;
   for (const platform of platforms) {
     if (platform.noteLines === undefined && platform.imageTop <= settledImageTop) {
       const group = platform.noteGroup;
       platform.noteLines = null;
       if (!group || group.shown) continue;
       const neighbors = platforms.filter(other => other !== platform);
-      const fits = platform.endsNoteGroup || platform.wideCheddarCaption ? makeCaptionSpace(platform, neighbors) :
-        !neighbors.some(other => cheeseImagesOverlap(platform, other));
+      const fits = makeCaptionSpace(platform, neighbors, group.lines);
       if (!fits) continue;
       platform.noteLines = group.lines;
       group.shown = true;
@@ -475,12 +484,13 @@ function addPlatforms() {
 
 function addStepPlatforms(step) {
   if (level > LAST_STARTING_CHEDDAR_STEP && level <= LAST_STACKED_CHEDDAR_STEP) {
-    const center = Math.max(.40, Math.min(.60, step.x));
+    const center = Math.max(.44, Math.min(.56, step.x));
     const large = createPlatform(center * WIDTH, .37 * WIDTH, lastHeight, level, STACKED_CHEDDAR, PAIRED_CHEDDAR_IMAGE_HEIGHT);
     const small = createPlatform(center * WIDTH, .205 * WIDTH, lastHeight, level, STACKED_CHEDDAR);
     const seam = large.x;
-    Object.assign(large, {x: seam - large.w / 2, pairSide: -1, pairSeam: seam});
-    Object.assign(small, {x: seam + small.w / 2, pairSide: 1, pairSeam: seam});
+    const side = level % 2 === 0 ? -1 : 1;
+    Object.assign(large, {x: seam + side * large.w / 2, pairSide: side, pairSeam: seam});
+    Object.assign(small, {x: seam - side * small.w / 2, pairSide: -side, pairSeam: seam});
     large.wideCheddarCaption = true;
     small.noteLines = null;
     platforms.push(large, small);
@@ -1000,13 +1010,12 @@ function drawPlatform(platform) {
     ctx.drawImage(image,x,top,platform.w,h);
   }
   if (platform.noteLines) {
-    drawCheeseNote(platform.noteLines, platform.x, top + h / 2, platform.w, h, platform.wideCheddarCaption);
+    drawCheeseNote(platform.noteLines, platform.x, top + h / 2, platform.w, h);
   }
 }
 
-function drawCheeseNote(lines, x, y, cheeseWidth, cheeseHeight, largeCaption) {
-  const fontSize = Math.min(largeCaption ? 17 : 15, cheeseWidth / (largeCaption ? 7.5 : 9.5),
-    (cheeseHeight - 8) / (lines.length * 1.18));
+function drawCheeseNote(lines, x, y, cheeseWidth, cheeseHeight) {
+  const fontSize = Math.min(22, cheeseWidth / 8.5, (cheeseHeight - 10) / (lines.length * 1.18));
   const lineHeight = fontSize * 1.18;
   const firstLineY = y - (lines.length - 1) * lineHeight / 2;
   ctx.save();
