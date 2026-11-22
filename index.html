@@ -26,7 +26,9 @@
   .icon{display:grid;place-items:center;border:1px solid #a9d7ff69;background:#0d2d55df;border-radius:13px;width:42px;height:42px;padding:0;font-size:21px;line-height:1}
   .icon[hidden]{display:none}
   .jump-hint{position:absolute;bottom:calc(20px + var(--safe-bottom));left:calc(var(--safe-left) + 9px);right:calc(var(--safe-right) + 9px);width:max-content;max-width:calc(100% - var(--safe-left) - var(--safe-right) - 18px);margin-inline:auto;font-size:12px;font-weight:750;text-align:center;background:#0b3058dc;color:#ffee9b;border:1px solid #a9d7ff68;border-radius:30px;padding:8px 9px;pointer-events:none}
-  .message{--bottom-gap:58px;position:absolute;bottom:calc(var(--safe-bottom) + var(--bottom-gap));left:calc(var(--safe-left) + 12px);right:calc(var(--safe-right) + 12px);max-width:350px;max-height:calc(100% - var(--safe-top) - var(--safe-bottom) - var(--bottom-gap) - 86px);margin-inline:auto;overflow:auto;overscroll-behavior:contain;text-align:center;padding:19px 15px 16px;background:#0c2c52f2;border:1px solid #a9d7ff7d;border-radius:24px;box-shadow:0 16px 55px #0b284b62}
+  .message{--bottom-gap:58px;position:absolute;bottom:calc(var(--safe-bottom) + var(--bottom-gap));left:calc(var(--safe-left) + 12px);right:calc(var(--safe-right) + 12px);display:flex;flex-direction:column;max-width:350px;max-height:calc(100% - var(--safe-top) - var(--safe-bottom) - var(--bottom-gap) - 86px);margin-inline:auto;text-align:center;padding:19px 15px 16px;background:#0c2c52f2;border:1px solid #a9d7ff7d;border-radius:24px;box-shadow:0 16px 55px #0b284b62}
+  .message-content{min-height:0;overflow:auto;overscroll-behavior:contain}
+  .message>.start,.message>.change-nickname{flex:none}
   .message[hidden]{display:none}
   h1{font-size:clamp(22px,6.4vw,32px);line-height:1.08;letter-spacing:-.055em;margin:0}
   .message p{font-size:14px;line-height:1.45;margin:9px 0 14px;color:#d9ecff}
@@ -64,19 +66,21 @@
   </div>
   <div id="jumpHint" class="jump-hint" hidden>좌우 터치로 점프 · 공중에서는 방향 전환</div>
   <section id="message" class="message" aria-labelledby="title">
-    <h1 id="title">찍찍 치즈계단</h1>
-    <p id="description">벽에 닿으면 멈춰요.<br>좌우를 터치해 점프하고, 공중에서는 방향을 바꿔요.</p>
-    <form id="nicknameForm" class="nickname-form">
-      <label id="nicknameLabel" for="nicknameInput">닉네임</label>
-      <select id="nicknameSelect" hidden></select>
-      <input id="nicknameInput" type="text" maxlength="16" placeholder="닉네임을 입력하세요" autocomplete="off" enterkeyhint="go">
-      <p id="nicknameNote" class="form-note">이 브라우저에서 닉네임을 최대 2개까지 저장할 수 있어요.</p>
-    </form>
-    <section id="rankingPanel" class="ranking" aria-labelledby="rankingTitle" hidden>
-      <h2 id="rankingTitle">치즈 랭킹 TOP 20</h2>
-      <ol id="rankingList" aria-labelledby="rankingTitle" tabindex="0"></ol>
-    </section>
-    <p id="gameStatus" class="game-status" role="status" hidden></p>
+    <div class="message-content">
+      <h1 id="title">찍찍 치즈계단</h1>
+      <p id="description">벽에 닿으면 멈춰요.<br>좌우를 터치해 점프하고, 공중에서는 방향을 바꿔요.</p>
+      <form id="nicknameForm" class="nickname-form">
+        <label id="nicknameLabel" for="nicknameInput">닉네임</label>
+        <select id="nicknameSelect" hidden></select>
+        <input id="nicknameInput" type="text" maxlength="16" placeholder="닉네임을 입력하세요" autocomplete="off" enterkeyhint="go">
+        <p id="nicknameNote" class="form-note">이 브라우저에서 닉네임을 최대 2개까지 저장할 수 있어요.</p>
+      </form>
+      <section id="rankingPanel" class="ranking" aria-labelledby="rankingTitle" hidden>
+        <h2 id="rankingTitle">치즈 랭킹 TOP 20</h2>
+        <ol id="rankingList" aria-labelledby="rankingTitle" tabindex="0"></ol>
+      </section>
+      <p id="gameStatus" class="game-status" role="status" hidden></p>
+    </div>
     <button type="button" id="start" class="start">게임 시작</button>
     <button type="button" id="changeNickname" class="change-nickname" hidden>닉네임 선택</button>
   </section>
