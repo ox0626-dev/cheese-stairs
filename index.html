@@ -274,13 +274,14 @@ const flights = [
 let width, height, scale, offset, viewHeight;
 let player, platforms, lastHeight, level, flightIndex, stepIndex, camera, best, sparks;
 let cheeseBag = [];
+const MAX_PLATFORM_IMAGE_HEIGHT = 100;
 const cheeseNotes = [
-  {photos: STARTING_CHEDDAR, lines: CHEDDAR_NOTE_LINES, count: 0, slot: 0},
-  {photos: [STACKED_CHEDDAR], lines: STACKED_CHEDDAR_NOTE_LINES, count: 0, slot: 0},
-  {photos: HOLEY_CHEESE, lines: EMMENTAL_NOTE_LINES, count: 0, slot: 0},
-  {photos: GOLDEN_CHEESE.slice(1), lines: AGED_GOUDA_NOTE_LINES, count: 0, slot: 0},
-  {photos: [ROUND_CHEESE[1]], lines: BRIE_NOTE_LINES, count: 0, slot: 0},
-  {photos: [CHEESE_PILE], lines: CHEESE_PILE_NOTE_LINES, count: 0, slot: 0},
+  {photos: STARTING_CHEDDAR, lines: CHEDDAR_NOTE_LINES, skip: 0},
+  {photos: [STACKED_CHEDDAR], lines: STACKED_CHEDDAR_NOTE_LINES, skip: 0},
+  {photos: HOLEY_CHEESE, lines: EMMENTAL_NOTE_LINES, skip: 0},
+  {photos: GOLDEN_CHEESE.slice(1), lines: AGED_GOUDA_NOTE_LINES, skip: 0},
+  {photos: [ROUND_CHEESE[1]], lines: BRIE_NOTE_LINES, skip: 0},
+  {photos: [CHEESE_PILE], lines: CHEESE_PILE_NOTE_LINES, skip: 0},
 ];
 let mode = 'ready';
 let elapsed = 0;
@@ -288,7 +289,7 @@ let audioContext, musicGain, effectsGain;
 
 function reset() {
   cheeseBag = [];
-  for (const note of cheeseNotes) note.count = 0;
+  for (const note of cheeseNotes) note.skip = 0;
   const base = createPlatform(195,314,START,0);
   player = {
     x:133,h:START,vy:0,dir:1,ground:base,push:0,runDistance:0,air:0,coyote:0,buffer:0,jumpDir:1,
@@ -337,11 +338,11 @@ function nextCheesePhoto(level) {
 function createPlatform(x, w, h, level) {
   const jitter = level > 0 ? (Math.random() - .5) * 16 : 0;
   const photo = nextCheesePhoto(level);
-  const maxHeight = level === 0 ? 144 : 100;
+  const maxHeight = level === 0 ? 144 : MAX_PLATFORM_IMAGE_HEIGHT;
   const width = Math.min(w, maxHeight / photo.aspect);
   const imageHeight = width * photo.aspect;
   const imageTop = h + imageHeight * photo.surface;
-  return {x: x + jitter, w: width, h, level, photo, imageHeight, imageTop, noteLines: selectCheeseNote(photo)};
+  return {x: x + jitter, w: width, h, level, photo, imageHeight, imageTop};
 }
 
 function addPlatform(platform) {
@@ -360,9 +361,12 @@ function addPlatform(platform) {
 function selectCheeseNote(photo) {
   const note = cheeseNotes.find(note => note.photos.includes(photo));
   if (!note) return null;
-  const slot = note.count++ % 3;
-  if (slot === 0) note.slot = Math.floor(Math.random() * 3);
-  return slot === note.slot ? note.lines : null;
+  if (note.skip > 0) {
+    note.skip--;
+    return null;
+  }
+  note.skip = 1 + Math.floor(Math.random() * 2);
+  return note.lines;
 }
 
 function addPlatforms() {
@@ -379,6 +383,13 @@ function addPlatforms() {
     if (stepIndex === flight.length) {
       stepIndex = 0;
       flightIndex = (flightIndex + 1) % flights.length;
+    }
+  }
+  // New platforms are higher than lastHeight, but their images can extend below it.
+  const settledImageTop = lastHeight - MAX_PLATFORM_IMAGE_HEIGHT;
+  for (const platform of platforms) {
+    if (platform.noteLines === undefined && platform.imageTop <= settledImageTop) {
+      platform.noteLines = selectCheeseNote(platform.photo);
     }
   }
 }
