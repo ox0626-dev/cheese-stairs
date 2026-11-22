@@ -259,9 +259,15 @@ const AGED_GOUDA_NOTE_LINES = [
   '견과류 풍미가 있다.',
   '100g당 약 6,300원',
 ];
-const ROUND_CHEESE = ['cheesePhoto8', 'cheesePhoto9']
-  .map(sprite => CHEESE_PHOTOS.find(photo => photo.sprite === sprite));
-const LAST_ROUND_CHEESE_STEP = 25;
+const GRUYERE = CHEESE_PHOTOS.find(photo => photo.sprite === 'cheesePhoto16');
+const BRIE = CHEESE_PHOTOS.find(photo => photo.sprite === 'cheesePhoto9');
+const LAST_GRUYERE_STEP = 25;
+const GRUYERE_NOTE_LINES = [
+  '<그뤼에르치즈>',
+  '스위스의 대표적인 숙성 치즈.',
+  '고소하고 깊은 감칠맛이 특징이다.',
+  '100g당 약5,200원',
+];
 const BRIE_NOTE_LINES = [
   '<브리치즈>',
   '프랑스의 대표적인 치즈.',
@@ -282,29 +288,29 @@ const CHEESE_PILE_NOTE_LINES = [
 
 const flights = [
   [
-    {gap:91,x:.68,w:.44},
-    {gap:98,x:.47,w:.39},
-    {gap:87,x:.25,w:.50},
-    {gap:94,x:.50,w:.37},
+    {gap:91,x:.68},
+    {gap:98,x:.47},
+    {gap:87,x:.25},
+    {gap:94,x:.50},
   ],
   [
-    {gap:101,x:.80,w:.40},
-    {gap:74,x:.81,w:.38,extra:{x:.28,w:.29,below:16}},
-    {gap:112,x:.50,w:.36},
-    {gap:88,x:.26,w:.52},
+    {gap:101,x:.80},
+    {gap:74,x:.81,extra:{x:.28,below:16}},
+    {gap:112,x:.50},
+    {gap:88,x:.26},
   ],
   [
-    {gap:94,x:.40,w:.33},
-    {gap:103,x:.74,w:.52},
-    {gap:83,x:.59,w:.32,extra:{x:.21,w:.42,below:13}},
-    {gap:105,x:.33,w:.37},
-    {gap:87,x:.18,w:.36},
+    {gap:94,x:.40},
+    {gap:103,x:.74},
+    {gap:83,x:.59,extra:{x:.21,below:13}},
+    {gap:105,x:.33},
+    {gap:87,x:.18},
   ],
   [
-    {gap:94,x:.46,w:.44},
-    {gap:100,x:.72,w:.42},
-    {gap:90,x:.55,w:.36,extra:{x:.16,w:.32,below:11}},
-    {gap:106,x:.36,w:.44},
+    {gap:94,x:.46},
+    {gap:100,x:.72},
+    {gap:90,x:.55,extra:{x:.16,below:11}},
+    {gap:106,x:.36},
   ],
 ];
 
@@ -312,11 +318,11 @@ let width, height, scale, offset, viewHeight;
 let player, platforms, lastHeight, level, flightIndex, stepIndex, camera, best, sparks;
 let cheeseBag = [];
 let emmentalBag = [];
-const MAX_PLATFORM_IMAGE_HEIGHT = 100;
-const PAIRED_CHEDDAR_IMAGE_HEIGHT = 124;
-const CAPTION_MIN_WIDTH = 126;
-const CAPTION_MAX_WIDTH = 205;
-const CAPTION_IMAGE_REACH = CAPTION_MAX_WIDTH * Math.max(...CHEESE_PHOTOS.map(photo => photo.aspect));
+const PLATFORM_WIDTH = 150;
+const EXTRA_PLATFORM_WIDTH = 140;
+const SMALL_CHEDDAR_WIDTH = 128;
+const START_PLATFORM_WIDTH = 176;
+const PLATFORM_IMAGE_REACH = START_PLATFORM_WIDTH * Math.max(...CHEESE_PHOTOS.map(photo => photo.aspect));
 const CHEESES_PER_NOTE = 3;
 // Each photo has a 48 by 48 alpha mask packed one pixel per bit.
 const CHEESE_MASK_DATA = {
@@ -349,8 +355,10 @@ const cheeseNotes = [
   {photos: HOLEY_CHEESE, lines: EARLY_EMMENTAL_NOTE_LINES,
     firstLevel: LAST_BLOCK_CHEDDAR_STEP + 1, lastLevel: LAST_EMMENTAL_STEP},
   {photos: HOLEY_CHEESE, lines: EMMENTAL_NOTE_LINES},
+  {photos: [GRUYERE], lines: GRUYERE_NOTE_LINES,
+    firstLevel: LAST_EMMENTAL_STEP + 1, lastLevel: LAST_GRUYERE_STEP},
   {photos: GOLDEN_CHEESE.slice(1), lines: AGED_GOUDA_NOTE_LINES},
-  {photos: [ROUND_CHEESE[1]], lines: BRIE_NOTE_LINES},
+  {photos: [BRIE], lines: BRIE_NOTE_LINES},
   {photos: [CHEESE_PILE], lines: CHEESE_PILE_NOTE_LINES},
 ];
 let mode = 'ready';
@@ -361,7 +369,7 @@ function reset() {
   cheeseBag = [];
   emmentalBag = [];
   for (const note of cheeseNotes) note.count = 0;
-  const base = createPlatform(195,314,START,0);
+  const base = createPlatform(195,START_PLATFORM_WIDTH,START,0);
   player = {
     x:133,h:START,vy:0,dir:1,ground:base,push:0,runDistance:0,air:0,coyote:0,buffer:0,jumpDir:1,
   };
@@ -389,9 +397,8 @@ function nextCheesePhoto(level) {
     if (!emmentalBag.length) emmentalBag = shuffledCheesePhotos(HOLEY_CHEESE);
     return emmentalBag.pop();
   }
-  if (level <= LAST_ROUND_CHEESE_STEP) {
-    const index = level - LAST_EMMENTAL_STEP - 1;
-    return ROUND_CHEESE[index % ROUND_CHEESE.length];
+  if (level <= LAST_GRUYERE_STEP) {
+    return GRUYERE;
   }
   if (level <= LAST_CHEESE_PILE_STEP) {
     return CHEESE_PILE;
@@ -409,17 +416,17 @@ function shuffledCheesePhotos(photos) {
   return shuffled;
 }
 
-function createPlatform(x, w, h, level, photo = nextCheesePhoto(level), maxHeight = MAX_PLATFORM_IMAGE_HEIGHT) {
+function createPlatform(x, w, h, level, photo = nextCheesePhoto(level)) {
   const jitter = level > 0 ? (Math.random() - .5) * 16 : 0;
-  const width = Math.min(w, (level === 0 ? 144 : maxHeight) / photo.aspect);
-  const imageHeight = width * photo.aspect;
+  const center = Math.max(w / 2, Math.min(WIDTH - w / 2, x + jitter));
+  const imageHeight = w * photo.aspect;
   const imageTop = h + imageHeight * photo.surface;
   const note = cheeseNotes.find(note => note.photos.includes(photo) &&
     level >= (note.firstLevel ?? 0) && level <= (note.lastLevel ?? Infinity));
   if (note && note.count++ % CHEESES_PER_NOTE === 0) {
     note.group = {lines: note.lines, shown: false};
   }
-  return {x: x + jitter, w: width, h, level, photo, imageHeight, imageTop,
+  return {x: center, w, h, level, photo, imageHeight, imageTop,
     noteGroup: note?.group};
 }
 
@@ -468,34 +475,26 @@ function resizeCheese(cheese, width) {
   };
 }
 
-function makeCaptionSpace(platform, neighbors, lines) {
-  const pairRoom = platform.pairSide === -1 ? platform.pairSeam : WIDTH - platform.pairSeam;
-  const maxWidth = platform.pairSide ? Math.min(CAPTION_MAX_WIDTH, pairRoom) : CAPTION_MAX_WIDTH;
-  const targetWidth = Math.min(maxWidth, Math.max(180, (lines.length * 20 + 12) / platform.photo.aspect));
-  const minWidth = Math.min(maxWidth, CAPTION_MIN_WIDTH);
-  for (const width of [targetWidth, (targetWidth + minWidth) / 2, minWidth]) {
-    const offsets = platform.pairSide ? [0] : [0, -20, 20, -38, 38];
-    for (const offset of offsets) {
-      const enlarged = resizeCheese({...platform, x: platform.x + offset}, width);
-      const touching = neighbors.filter(other => cheeseImagesOverlap(enlarged, other));
-      if (touching.some(other => other.noteLines)) continue;
-      for (const factor of [1, .9, .75, .6, .46]) {
-        const smaller = new Map(touching.map(other => [other, resizeCheese(other,
-          Math.max(other.wideCheddarCaption ? 80 : 0, other.w * factor))]));
-        if (neighbors.some(other => cheeseImagesOverlap(enlarged, smaller.get(other) || other))) continue;
-        if ([...smaller.entries()].some(([other, candidate]) =>
-          neighbors.some(captioned => captioned !== other && captioned.noteLines && cheeseImagesOverlap(candidate, captioned)))) continue;
-        Object.assign(platform, enlarged);
-        for (const [other, resized] of smaller) Object.assign(other, resized);
-        return true;
-      }
-    }
+function makeCaptionSpace(platform, neighbors) {
+  const offsets = platform.pairSide ? [0] : [0, -18, 18, -30, 30];
+  for (const offset of offsets) {
+    const candidate = resizeCheese({...platform, x: platform.x + offset}, platform.w);
+    const touching = neighbors.filter(other => cheeseImagesOverlap(candidate, other));
+    if (touching.some(other => other.noteLines)) continue;
+    const adjusted = new Map(touching.map(other => [other, resizeCheese(other,
+      Math.min(other.w, other.pairSide && !other.wideCheddarCaption ? 122 : 132))]));
+    if (neighbors.some(other => cheeseImagesOverlap(candidate, adjusted.get(other) || other))) continue;
+    if ([...adjusted.entries()].some(([other, resized]) =>
+      neighbors.some(captioned => captioned !== other && captioned.noteLines && cheeseImagesOverlap(resized, captioned)))) continue;
+    Object.assign(platform, candidate);
+    for (const [other, resized] of adjusted) Object.assign(other, resized);
+    return true;
   }
   return false;
 }
 
 function addPlatforms() {
-  while (lastHeight < camera + viewHeight + 2 * CAPTION_IMAGE_REACH + 120) {
+  while (lastHeight < camera + viewHeight + 2 * PLATFORM_IMAGE_REACH + 120) {
     const flight = flights[flightIndex];
     const step = flight[stepIndex++];
     lastHeight += step.gap;
@@ -507,7 +506,7 @@ function addPlatforms() {
     }
   }
   // New platforms are higher than lastHeight, but their images can extend below it.
-  const settledImageTop = lastHeight - 1.5 * CAPTION_IMAGE_REACH;
+  const settledImageTop = lastHeight - 1.5 * PLATFORM_IMAGE_REACH;
   for (const platform of platforms) {
     if (platform.noteLines === undefined && platform.imageTop <= settledImageTop) {
       const group = platform.noteGroup;
@@ -515,7 +514,7 @@ function addPlatforms() {
       if (!group || group.shown) continue;
       const neighbors = platforms.filter(other => other !== platform);
       const lines = platform.wideCheddarCaption ? EARLY_STACKED_CHEDDAR_NOTE_LINES : group.lines;
-      const fits = makeCaptionSpace(platform, neighbors, lines);
+      const fits = makeCaptionSpace(platform, neighbors);
       if (!fits) continue;
       platform.noteLines = lines;
       group.shown = true;
@@ -526,8 +525,8 @@ function addPlatforms() {
 function addStepPlatforms(step) {
   if (level > LAST_STARTING_CHEDDAR_STEP && level <= LAST_STACKED_CHEDDAR_STEP) {
     const center = Math.max(.44, Math.min(.56, step.x));
-    const large = createPlatform(center * WIDTH, .37 * WIDTH, lastHeight, level, STACKED_CHEDDAR, PAIRED_CHEDDAR_IMAGE_HEIGHT);
-    const small = createPlatform(center * WIDTH, .205 * WIDTH, lastHeight, level, STACKED_CHEDDAR);
+    const large = createPlatform(center * WIDTH, PLATFORM_WIDTH, lastHeight, level, STACKED_CHEDDAR);
+    const small = createPlatform(center * WIDTH, SMALL_CHEDDAR_WIDTH, lastHeight, level, STACKED_CHEDDAR);
     const seam = large.x;
     const side = level % 2 === 0 ? -1 : 1;
     Object.assign(large, {x: seam + side * large.w / 2, pairSide: side, pairSeam: seam});
@@ -546,10 +545,10 @@ function addStepPlatforms(step) {
       // Save the stacked cheddar for the next step, where it can appear alone.
       cheeseBag.push(extraPhoto);
     } else {
-      platforms.push(createPlatform(extra.x * WIDTH, extra.w * WIDTH, lastHeight - extra.below, level, extraPhoto));
+      platforms.push(createPlatform(extra.x * WIDTH, EXTRA_PLATFORM_WIDTH, lastHeight - extra.below, level, extraPhoto));
     }
   }
-  platforms.push(createPlatform(step.x * WIDTH, step.w * WIDTH, lastHeight, level, photo));
+  platforms.push(createPlatform(step.x * WIDTH, PLATFORM_WIDTH, lastHeight, level, photo));
 }
 
 function resize() {
