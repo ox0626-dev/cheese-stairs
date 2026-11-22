@@ -19,6 +19,7 @@ CREATE INDEX runs_started ON runs (started);
 `;
 
 async function ranking(request) {
+  const nicknameLimit = 3;
   const { adminDb } = await import('@run402/functions');
   const origin = 'https://ox0626-dev.github.io';
   const headers = {
@@ -56,7 +57,7 @@ async function ranking(request) {
     const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
     const device = data?.device || route.searchParams.get('device');
     if (typeof device !== 'string' || !uuid.test(device)) return send({ error: 'network_unavailable' }, 400);
-    if (request.method === 'GET') return send({ nicknames: await names(device) });
+    if (request.method === 'GET') return send({ nicknames: await names(device), nicknameLimit });
     if (request.method !== 'POST') return send({ error: 'invalid_method' }, 405);
     if (data.action === 'start') {
       const name = typeof data.nickname === 'string'
@@ -66,16 +67,16 @@ async function ranking(request) {
       }
       const key = name.toLowerCase();
       const id = crypto.randomUUID();
-      for (let attempt = 0; attempt < 2; attempt++) {
+      for (let attempt = 0; attempt < nicknameLimit; attempt++) {
         const claim = await db.sql(`
           INSERT INTO profiles (nickname_key, nickname, device_id, slot)
           SELECT $1, $2, $3::uuid, candidate.slot
-          FROM generate_series(1, 2) AS candidate(slot)
+          FROM generate_series(1, $4::integer) AS candidate(slot)
           WHERE NOT EXISTS (
             SELECT 1 FROM profiles WHERE device_id = $3::uuid AND profiles.slot = candidate.slot
           )
           ORDER BY candidate.slot LIMIT 1 ON CONFLICT DO NOTHING RETURNING nickname_key
-        `, [key, name, device]);
+        `, [key, name, device, nicknameLimit]);
         if (claim.rows.length) break;
       }
       const created = await db.sql(`
@@ -121,7 +122,14 @@ async function ranking(request) {
 }
 
 writeFileSync('run402.json', JSON.stringify({
-  database: { migrations: [{ id: '001_ranking', sql }] },
+  database: { migrations: [
+    { id: '001_ranking', sql },
+    { id: '002_three_nickname_slots', sql: `
+      ALTER TABLE profiles
+        DROP CONSTRAINT profiles_slot_check,
+        ADD CONSTRAINT profiles_slot_check CHECK (slot BETWEEN 1 AND 3);
+    ` }
+  ] },
   functions: { replace: { ranking: {
     runtime: 'node22',
     source: 'export default ' + ranking.toString(),
