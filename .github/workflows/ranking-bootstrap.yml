@@ -1,0 +1,30 @@
+name: Provision Cheese Stairs ranking
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Build ranking deployment
+        working-directory: ranking
+        run: node release.mjs
+      - name: Deploy on a fresh free prototype profile
+        working-directory: ranking
+        env:
+          RUN402_TELEMETRY: "0"
+          RUN402_CLIENT: codex
+        run: |
+          npx --yes run402@4.126.1 up --name jjikjjik-cheese-ranking -y > "$RUNNER_TEMP/cheese-release.json"
+          node -e 'const r=require(process.argv[1]).result; if(!r?.deploy?.urls?.site) process.exit(1); console.log("PUBLIC_RANK_URL="+r.deploy.urls.site)' "$RUNNER_TEMP/cheese-release.json"
+      - name: Allow this repository to update the ranking API
+        working-directory: ranking
+        env:
+          RUN402_TELEMETRY: "0"
+        run: |
+          npx --yes run402@4.126.1 ci link github --manifest run402.json --repo ox0626-dev/cheese-stairs --repository-id 1467315184 --branch main --no-workflow --route-scope /api/ranking
