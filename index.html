@@ -49,6 +49,7 @@
   .stage{grid-row:2}
   .jump-hint,.message{grid-row:3;justify-self:center}
   .jump-hint{max-width:100%;font-size:12px;font-weight:750;text-align:center;background:#0b3058dc;color:#ffee9b;border:1px solid #a9d7ff68;border-radius:30px;padding:8px 9px;pointer-events:none}
+  .play-tip{position:absolute;z-index:2;top:calc(92px + env(safe-area-inset-top,0px));inset-inline:16px;width:max-content;max-width:calc(100% - 32px);margin:0 auto;padding:9px 13px;border:1px solid #a9d7ff7d;border-radius:18px;background:#0c2c52ed;color:#ffea87;text-align:center;font-size:14px;font-weight:750;pointer-events:none}
   .message{display:flex;flex-direction:column;width:min(350px,100%);max-height:min(480px,calc(var(--game-height) * .56));text-align:center;padding:15px;background:#0c2c52f2;border:1px solid #a9d7ff7d;border-radius:24px;box-shadow:0 8px 22px #0b284b4d}
   .message-content{min-height:0;overflow:auto;overscroll-behavior:contain}
   .message-actions{display:flex;gap:8px;flex:none}
@@ -95,10 +96,12 @@
   </div>
   <div class="stage"><canvas id="field" aria-label="생쥐가 치즈 계단을 올라가는 화면"></canvas></div>
   <div id="jumpHint" class="jump-hint" hidden>좌우 터치로 점프 · 공중에서는 방향 전환</div>
+  <p id="cheeseTip" class="play-tip" role="status" hidden>위로 올라갈수록 고급치즈가 나와요</p>
   <section id="message" class="message" aria-labelledby="title">
     <div class="message-content">
       <h1 id="title">찍찍 치즈계단</h1>
       <p id="description">벽에 닿으면 멈춰요.<br>좌우를 터치해 점프하고, 공중에서는 방향을 바꿔요.</p>
+      <p id="refreshHint">게임화면이 잘린다면 새로고침🔄 해주세요</p>
       <form id="nicknameForm" class="nickname-form">
         <label id="nicknameLabel" for="nicknameInput">닉네임</label>
         <select id="nicknameSelect" hidden></select>
@@ -160,6 +163,8 @@ const changeNickname = document.querySelector('#changeNickname');
 const pause = document.querySelector('#pause');
 const fullscreen = document.querySelector('#fullscreen');
 const jumpHint = document.querySelector('#jumpHint');
+const cheeseTip = document.querySelector('#cheeseTip');
+const refreshHint = document.querySelector('#refreshHint');
 const backgroundMusic = document.querySelector('#backgroundMusic');
 const soundButton = document.querySelector('#soundButton');
 const soundSettings = document.querySelector('#soundSettings');
@@ -183,6 +188,8 @@ const EDGE = 64;
 const START = 170;
 const SOLE_INSET = 4;
 const MUSIC_START_TIME = 12;
+const CHEESE_TIP_START = 3;
+const CHEESE_TIP_END = 5.5;
 const CHEESE_PHOTOS = [{"aspect":0.9464,"surface":0.177,"sprite":"cheesePhoto1","rotated":false},{"aspect":0.9219,"surface":0.08,"sprite":"cheesePhoto2","rotated":false},{"aspect":0.6496,"surface":0.08,"sprite":"cheesePhoto3","rotated":false},{"aspect":0.5491,"surface":0.08,"sprite":"cheesePhoto4","rotated":false},{"aspect":0.6674,"surface":0.08,"sprite":"cheesePhoto5","rotated":false},{"aspect":0.6825,"surface":0.08,"sprite":"cheesePhoto6","rotated":false},{"aspect":0.9704,"surface":0.08,"sprite":"cheesePhoto7","rotated":false},{"aspect":0.7254,"surface":0.08,"sprite":"cheesePhoto8","rotated":false},{"aspect":0.7221,"surface":0.08,"sprite":"cheesePhoto9","rotated":false},{"aspect":0.6161,"surface":0.141,"sprite":"cheesePhoto10","rotated":false},{"aspect":0.7121,"surface":0.219,"sprite":"cheesePhoto11","rotated":false},{"aspect":0.6786,"surface":0.125,"sprite":"cheesePhoto12","rotated":true},{"aspect":0.8638,"surface":0.08,"sprite":"cheesePhoto13","rotated":false},{"aspect":0.9409,"surface":0.08,"sprite":"cheesePhoto14","rotated":false},{"aspect":0.8571,"surface":0.08,"sprite":"cheesePhoto15","rotated":false},{"aspect":0.7098,"surface":0.08,"sprite":"cheesePhoto16","rotated":false}];
 
 const STARTING_CHEDDAR = ['cheesePhoto4', 'cheesePhoto5', 'cheesePhoto6']
@@ -210,7 +217,7 @@ const EMMENTAL_NOTE_LINES = [
   '스위스의 대표적인 치즈.',
   '부드럽고 고소하며',
   '풍미가 있다.',
-  '100g당 5,300원',
+  '100g당 5,000원',
 ];
 const LAST_HOLEY_CHEESE_STEP = 15;
 const GOLDEN_CHEESE = ['cheesePhoto2', 'cheesePhoto3', 'cheesePhoto15', 'cheesePhoto16']
@@ -221,7 +228,7 @@ const AGED_GOUDA_NOTE_LINES = [
   '네덜란드의 대표적인 치즈.',
   '단단한 식감과 캐러멜,',
   '견과류 풍미가 있다.',
-  '100g당 약 5,000원',
+  '100g당 약 6,300원',
 ];
 const ROUND_CHEESE = ['cheesePhoto8', 'cheesePhoto9']
   .map(sprite => CHEESE_PHOTOS.find(photo => photo.sprite === sprite));
@@ -359,9 +366,8 @@ function nextCheesePhoto(level) {
   return cheeseBag.pop();
 }
 
-function createPlatform(x, w, h, level) {
+function createPlatform(x, w, h, level, photo = nextCheesePhoto(level)) {
   const jitter = level > 0 ? (Math.random() - .5) * 16 : 0;
-  const photo = nextCheesePhoto(level);
   const maxHeight = level === 0 ? 144 : MAX_PLATFORM_IMAGE_HEIGHT;
   const width = Math.min(w, maxHeight / photo.aspect);
   const imageHeight = width * photo.aspect;
@@ -441,11 +447,7 @@ function addPlatforms() {
     const step = flight[stepIndex++];
     lastHeight += step.gap;
     level += 1;
-    if (step.extra) {
-      const extra = step.extra;
-      platforms.push(createPlatform(extra.x * WIDTH, extra.w * WIDTH, lastHeight - extra.below, level));
-    }
-    platforms.push(createPlatform(step.x * WIDTH, step.w * WIDTH, lastHeight, level));
+    addStepPlatforms(step);
     if (stepIndex === flight.length) {
       stepIndex = 0;
       flightIndex = (flightIndex + 1) % flights.length;
@@ -466,6 +468,30 @@ function addPlatforms() {
       group.shown = true;
     }
   }
+}
+
+function addStepPlatforms(step) {
+  if (level > LAST_STARTING_CHEDDAR_STEP && level <= LAST_STACKED_CHEDDAR_STEP) {
+    const center = Math.max(.40, Math.min(.60, step.x));
+    platforms.push(
+      createPlatform((center - .115) * WIDTH, .38 * WIDTH, lastHeight, level, STACKED_CHEDDAR),
+      createPlatform((center + .115) * WIDTH, .38 * WIDTH, lastHeight, level, STACKED_CHEDDAR),
+    );
+    return;
+  }
+
+  const photo = nextCheesePhoto(level);
+  const extra = step.extra;
+  if (extra && photo !== STACKED_CHEDDAR) {
+    const extraPhoto = nextCheesePhoto(level);
+    if (extraPhoto === STACKED_CHEDDAR) {
+      // Save the stacked cheddar for the next step, where it can appear alone.
+      cheeseBag.push(extraPhoto);
+    } else {
+      platforms.push(createPlatform(extra.x * WIDTH, extra.w * WIDTH, lastHeight - extra.below, level, extraPhoto));
+    }
+  }
+  platforms.push(createPlatform(step.x * WIDTH, step.w * WIDTH, lastHeight, level, photo));
 }
 
 function resize() {
@@ -512,6 +538,8 @@ function setMode(next) {
   message.hidden = next === 'playing';
   pause.hidden = next !== 'playing';
   jumpHint.hidden = next !== 'playing';
+  refreshHint.hidden = next !== 'ready';
+  updateCheeseTip();
   message.dataset.mode = next;
   message.setAttribute('aria-labelledby', next === 'ranking' ? 'rankingTitle' : 'title');
   nicknameForm.hidden = next !== 'ready';
@@ -828,8 +856,14 @@ function playJumpSound() {
   spring.stop(time + .30);
 }
 
+function updateCheeseTip() {
+  const visible = mode === 'playing' && elapsed >= CHEESE_TIP_START && elapsed < CHEESE_TIP_END;
+  if (cheeseTip.hidden === visible) cheeseTip.hidden = !visible;
+}
+
 function update(dt) {
   elapsed += dt;
+  updateCheeseTip();
   player.buffer = Math.max(0, player.buffer - dt);
   if (player.buffer > 0 && !player.push && (player.ground || player.coyote > 0)) {
     player.buffer = 0;
@@ -845,9 +879,11 @@ function update(dt) {
   }
 
   if (player.ground && !standingOn(player.ground,nextX) && !player.push) {
-    player.ground = null;
-    player.coyote = .085;
-    player.air = 0;
+    player.ground = platforms.find(platform => platform.h === player.h && standingOn(platform,nextX)) || null;
+    if (!player.ground) {
+      player.coyote = .085;
+      player.air = 0;
+    }
   }
   if (player.push > 0) {
     player.push -= dt;
