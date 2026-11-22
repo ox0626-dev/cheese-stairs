@@ -127,6 +127,12 @@ const SOLE_INSET = 4;
 const MUSIC_START_TIME = 12;
 const CHEESE_PHOTOS = [{"aspect":0.9464,"surface":0.177,"sprite":"cheesePhoto1","rotated":false},{"aspect":0.9219,"surface":0.08,"sprite":"cheesePhoto2","rotated":false},{"aspect":0.6496,"surface":0.08,"sprite":"cheesePhoto3","rotated":false},{"aspect":0.5491,"surface":0.08,"sprite":"cheesePhoto4","rotated":false},{"aspect":0.6674,"surface":0.08,"sprite":"cheesePhoto5","rotated":false},{"aspect":0.6825,"surface":0.08,"sprite":"cheesePhoto6","rotated":false},{"aspect":0.9704,"surface":0.08,"sprite":"cheesePhoto7","rotated":false},{"aspect":0.7254,"surface":0.08,"sprite":"cheesePhoto8","rotated":false},{"aspect":0.7221,"surface":0.08,"sprite":"cheesePhoto9","rotated":false},{"aspect":0.6161,"surface":0.141,"sprite":"cheesePhoto10","rotated":false},{"aspect":0.7121,"surface":0.219,"sprite":"cheesePhoto11","rotated":false},{"aspect":0.6786,"surface":0.125,"sprite":"cheesePhoto12","rotated":true},{"aspect":0.8638,"surface":0.08,"sprite":"cheesePhoto13","rotated":false},{"aspect":0.9409,"surface":0.08,"sprite":"cheesePhoto14","rotated":false},{"aspect":0.8571,"surface":0.08,"sprite":"cheesePhoto15","rotated":false},{"aspect":0.7098,"surface":0.08,"sprite":"cheesePhoto16","rotated":false}];
 
+const STARTING_CHEDDAR = ['cheesePhoto4', 'cheesePhoto5', 'cheesePhoto6']
+  .map(sprite => CHEESE_PHOTOS.find(photo => photo.sprite === sprite));
+const LAST_STARTING_CHEDDAR_STEP = 5;
+const STACKED_CHEDDAR = CHEESE_PHOTOS.find(photo => photo.sprite === 'cheesePhoto13');
+const LAST_STACKED_CHEDDAR_STEP = 10;
+
 const flights = [
   [
     {gap:91,x:.68,w:.44},
@@ -177,7 +183,13 @@ function reset() {
   addPlatforms();
 }
 
-function createPlatform(x, w, h, level) {
+function nextCheesePhoto(level) {
+  if (level <= LAST_STARTING_CHEDDAR_STEP) {
+    return STARTING_CHEDDAR[level % STARTING_CHEDDAR.length];
+  }
+  if (level <= LAST_STACKED_CHEDDAR_STEP) {
+    return STACKED_CHEDDAR;
+  }
   if (!cheeseBag.length) {
     cheeseBag = CHEESE_PHOTOS.slice();
     for (let i = cheeseBag.length - 1; i > 0; i--) {
@@ -185,8 +197,12 @@ function createPlatform(x, w, h, level) {
       [cheeseBag[i], cheeseBag[j]] = [cheeseBag[j], cheeseBag[i]];
     }
   }
+  return cheeseBag.pop();
+}
+
+function createPlatform(x, w, h, level) {
   const jitter = level > 0 ? (Math.random() - .5) * 16 : 0;
-  const photo = cheeseBag.pop();
+  const photo = nextCheesePhoto(level);
   const maxHeight = level === 0 ? 144 : 100;
   const width = Math.min(w, maxHeight / photo.aspect);
   return {x: x + jitter, w: width, h, level, photo};
