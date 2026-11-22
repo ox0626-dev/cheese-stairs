@@ -96,7 +96,7 @@
   </div>
   <div class="stage"><canvas id="field" aria-label="생쥐가 치즈 계단을 올라가는 화면"></canvas></div>
   <div id="jumpHint" class="jump-hint" hidden>좌우 터치로 점프 · 공중에서는 방향 전환</div>
-  <p id="cheeseTip" class="play-tip" role="status" hidden>위로 올라갈수록 고급치즈가 나와요</p>
+  <p id="cheeseTip" class="play-tip" role="status" hidden>위로 올라갈 수록 고급치즈가 나와요</p>
   <section id="message" class="message" aria-labelledby="title">
     <div class="message-content">
       <h1 id="title">찍찍 치즈계단</h1>
@@ -195,16 +195,16 @@ const MAX_GRUYERE_STEP_GAP = 108;
 const MAX_PLATFORM_SHIFT = 138;
 const STACKED_CHEDDAR_GAP = 102;
 const MUSIC_START_TIME = 12;
-const CHEESE_TIP_START = 3;
 const CHEESE_TIP_DURATION = 2.5;
-const CHEESE_TIP_STEPS = [5, 11, 16, 22, 27, 33];
 const VEST_STEP = 20;
 const HAT_STEP = 50;
-const OUTFIT_POPUPS = [
-  {step: VEST_STEP, text: '치즈20개 돌파! 고소한 치즈 조끼 획득'},
-  {step: HAT_STEP, text: '치즈50개 돌파! 흘러내리는 치즈 모자 획득'},
-];
 const OUTFIT_POPUP_DURATION = 3.2;
+const CHEESE_POPUPS = [
+  {step: 10, text: defaultCheeseTip, duration: CHEESE_TIP_DURATION},
+  {step: VEST_STEP, text: '치즈20개 돌파! 고소한 치즈 조끼 획득', duration: OUTFIT_POPUP_DURATION},
+  {step: 20, text: defaultCheeseTip, duration: CHEESE_TIP_DURATION},
+  {step: HAT_STEP, text: '치즈50개 돌파! 흘러내리는 치즈 모자 획득', duration: OUTFIT_POPUP_DURATION},
+];
 const OUTFIT_SPRITES = {
   vest: {stand: 0, run: [1, 2], jump: 3, push: 4},
   hatAndVest: {stand: 5, run: [6, 7], jump: 8, push: 5},
@@ -362,16 +362,15 @@ const cheeseNotes = [
 const MIXED_CHEESE_PHOTOS = cheeseNotes.flatMap(note => note.photos);
 let mode = 'ready';
 let elapsed = 0;
-let cheeseTipUntil = 0;
-let outfitPopupText = '';
-let outfitPopupUntil = 0;
-const pendingOutfitPopups = [];
+let cheesePopupUntil = 0;
+let activeCheesePopup = null;
+const pendingCheesePopups = [];
 let audioContext, musicGain, effectsGain;
 
 function reset() {
-  cheeseTipUntil = outfitPopupUntil = 0;
-  outfitPopupText = '';
-  pendingOutfitPopups.length = 0;
+  cheesePopupUntil = 0;
+  activeCheesePopup = null;
+  pendingCheesePopups.length = 0;
   cheeseBag = [];
   emmentalBag = [];
   lastCaptionLevel = -CAPTION_STEP_SPACING;
@@ -931,25 +930,19 @@ function playJumpSound() {
 }
 
 function updateCheeseTip() {
-  const intro = elapsed >= CHEESE_TIP_START && elapsed < CHEESE_TIP_START + CHEESE_TIP_DURATION;
-  if (mode === 'playing' && elapsed >= outfitPopupUntil && pendingOutfitPopups.length) {
-    outfitPopupText = pendingOutfitPopups.shift();
-    outfitPopupUntil = elapsed + OUTFIT_POPUP_DURATION;
+  if (mode === 'playing' && elapsed >= cheesePopupUntil && (activeCheesePopup || pendingCheesePopups.length)) {
+    activeCheesePopup = pendingCheesePopups.shift() ?? null;
+    if (activeCheesePopup) cheesePopupUntil = elapsed + activeCheesePopup.duration;
   }
-  const showingOutfit = elapsed < outfitPopupUntil;
-  const text = showingOutfit ? outfitPopupText : defaultCheeseTip;
-  const visible = mode === 'playing' && (showingOutfit || intro || elapsed < cheeseTipUntil);
+  const text = activeCheesePopup?.text ?? '';
   if (cheeseTip.textContent !== text) cheeseTip.textContent = text;
-  if (cheeseTip.hidden === visible) cheeseTip.hidden = !visible;
+  cheeseTip.hidden = mode !== 'playing' || !activeCheesePopup;
 }
 
 function reachCheese(step) {
   if (step <= best) return;
-  if (CHEESE_TIP_STEPS.some(target => best < target && step >= target)) {
-    cheeseTipUntil = elapsed + CHEESE_TIP_DURATION;
-  }
-  for (const reward of OUTFIT_POPUPS) {
-    if (best < reward.step && step >= reward.step) pendingOutfitPopups.push(reward.text);
+  for (const popup of CHEESE_POPUPS) {
+    if (best < popup.step && step >= popup.step) pendingCheesePopups.push(popup);
   }
   best = step;
   score.textContent = String(best);
