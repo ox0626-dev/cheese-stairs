@@ -576,7 +576,7 @@ function createPlatform(x, w, h, level, photo = nextCheesePhoto(level)) {
     ? {lines: note.lines, shown: false}
     : level <= LAST_STACKED_CHEDDAR_STEP ? null : note?.group;
   return {x: center, w, h, level, photo, imageHeight, imageTop,
-    noteGroup};
+    noteGroup: level === 27 ? null : noteGroup};
 }
 
 function cheeseImagesOverlap(first, second) {
