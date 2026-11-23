@@ -1277,7 +1277,7 @@ function startRescue(kind) {
   player.vy = player.push = player.coyote = player.buffer = 0;
   activeRescue = {kind, wearingVest, target, x: player.x, h: player.h,
     cameraStart: camera, cameraTarget, time: 0};
-  activeCheesePopup = {text: kind === 'propeller' ? '치즈 프로펠러다!!' : '치즈날개다!!', duration: 1.5};
+  activeCheesePopup = {text: kind === 'propeller' ? '치즈콥더다!' : '치즈날개다!!', duration: 1.5};
   cheesePopupUntil = elapsed + activeCheesePopup.duration;
   updateCheeseTip();
 }
