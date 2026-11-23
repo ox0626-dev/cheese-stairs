@@ -197,7 +197,7 @@ const STACKED_CHEDDAR_GAP = 96;
 const MUSIC_START_TIME = 12;
 const CHEESE_TIP_DURATION = 2.5;
 const VEST_STEP = 20;
-const VEST_GLOW_DURATION = 1.5;
+const REWARD_GLOW_DURATION = 1.5;
 const HAT_STEP = 50;
 const OUTFIT_POPUP_DURATION = 3.2;
 const CHEESE_POPUPS = [
@@ -370,11 +370,11 @@ let elapsed = 0;
 let cheesePopupUntil = 0;
 let activeCheesePopup = null;
 const pendingCheesePopups = [];
-let audioContext, musicGain, effectsGain, vestRewardBuffer, vestRewardSource;
-let vestGlowStarted = -Infinity;
+let audioContext, musicGain, effectsGain, outfitRewardBuffer, outfitRewardSource;
+let rewardGlowStarted = -Infinity;
 
 function reset() {
-  vestGlowStarted = -Infinity;
+  rewardGlowStarted = -Infinity;
   cheesePopupUntil = 0;
   activeCheesePopup = null;
   pendingCheesePopups.length = 0;
@@ -614,8 +614,8 @@ function setMode(next) {
   game.dataset.mode = next;
   if (next !== 'playing') {
     backgroundMusic.pause();
-    vestRewardSource?.stop();
-    vestRewardSource = null;
+    outfitRewardSource?.stop();
+    outfitRewardSource = null;
   }
   message.hidden = next === 'playing';
   pause.hidden = next !== 'playing';
@@ -898,7 +898,7 @@ function unlockAudio() {
     audioContext = new AudioContextType();
     effectsGain = audioContext.createGain();
     effectsGain.connect(audioContext.destination);
-    vestRewardBuffer = fetch(sources.vestReward)
+    outfitRewardBuffer = fetch(sources.vestReward)
       .then(response => response.arrayBuffer())
       .then(bytes => audioContext.decodeAudioData(bytes))
       .catch(() => null);
@@ -913,19 +913,19 @@ function unlockAudio() {
   if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
 }
 
-async function playVestReward() {
-  if (!vestRewardBuffer || effectsVolume.valueAsNumber === 0) return;
-  const started = vestGlowStarted;
-  const buffer = await vestRewardBuffer;
-  if (!buffer || mode !== 'playing' || started !== vestGlowStarted ||
-      elapsed - started >= VEST_GLOW_DURATION || audioContext.state !== 'running') return;
+async function playOutfitReward() {
+  if (!outfitRewardBuffer || effectsVolume.valueAsNumber === 0) return;
+  const started = rewardGlowStarted;
+  const buffer = await outfitRewardBuffer;
+  if (!buffer || mode !== 'playing' || started !== rewardGlowStarted ||
+      elapsed - started >= REWARD_GLOW_DURATION || audioContext.state !== 'running') return;
   const source = audioContext.createBufferSource();
   source.buffer = buffer;
   source.connect(effectsGain);
   source.onended = () => {
-    if (vestRewardSource === source) vestRewardSource = null;
+    if (outfitRewardSource === source) outfitRewardSource = null;
   };
-  vestRewardSource = source;
+  outfitRewardSource = source;
   source.start();
 }
 
@@ -975,10 +975,11 @@ function reachCheese(step) {
   for (const popup of CHEESE_POPUPS) {
     if (best < popup.step && step >= popup.step) pendingCheesePopups.push(popup);
   }
-  if (best < VEST_STEP && step >= VEST_STEP) {
-    vestGlowStarted = elapsed;
-    void playVestReward();
-    dust(player.x, player.h + 31, 12, '#fff4a8');
+  const earnedHat = best < HAT_STEP && step >= HAT_STEP;
+  if (earnedHat || (best < VEST_STEP && step >= VEST_STEP)) {
+    rewardGlowStarted = elapsed;
+    void playOutfitReward();
+    dust(player.x, player.h + (earnedHat ? 70 : 31), 12, '#fff4a8');
   }
   best = step;
   score.textContent = String(best);
@@ -1152,7 +1153,8 @@ function drawMouse(now) {
 }
 
 function drawOutfitMouse(runFrame, airborne) {
-  const outfit = best >= HAT_STEP ? OUTFIT_SPRITES.hatAndVest : OUTFIT_SPRITES.vest;
+  const wearingHat = best >= HAT_STEP;
+  const outfit = wearingHat ? OUTFIT_SPRITES.hatAndVest : OUTFIT_SPRITES.vest;
   let frame = runFrame < 0 ? outfit.stand : outfit.run[runFrame];
   let stretch = 1;
   if (player.push > 0) {
@@ -1174,21 +1176,21 @@ function drawOutfitMouse(runFrame, airborne) {
   const y = -OUTFIT_FRAME_ANCHOR.y * pixels;
   const w = frameWidth * pixels;
   const h = frameHeight * pixels;
-  const progress = (elapsed - vestGlowStarted) / VEST_GLOW_DURATION;
-  if (mode === 'playing' && progress >= 0 && progress < 1 && best < HAT_STEP) {
-    drawVestSunburst(progress);
+  const progress = (elapsed - rewardGlowStarted) / REWARD_GLOW_DURATION;
+  if (mode === 'playing' && progress >= 0 && progress < 1) {
+    drawRewardSunburst(progress, wearingHat ? -70 : -33);
   }
   ctx.drawImage(art.rewardMouse, sourceX, sourceY, frameWidth, frameHeight, x, y, w, h);
   ctx.restore();
 }
 
-function drawVestSunburst(progress) {
+function drawRewardSunburst(progress, centerY) {
   const spread = Math.min(1, progress * 4.5);
   const opacity = Math.min(1, (1 - progress) * 2.6);
   const radius = 30 + 78 * (1 - (1 - spread) ** 2);
   const rayCount = 12;
   ctx.save();
-  ctx.translate(-3, -33);
+  ctx.translate(-3, centerY);
   ctx.globalAlpha = opacity;
   const sunlight = ctx.createRadialGradient(0, 0, 9, 0, 0, radius);
   sunlight.addColorStop(0, '#fffdf0');
