@@ -205,6 +205,7 @@ const REWARD_GLOW_DURATION = 1.5;
 const HAT_STEP = 50;
 const OUTFIT_POPUP_DURATION = 3.2;
 const WING_RESCUE_DURATION = 1.05;
+const WING_RECOVERY_DURATION = 1.6;
 const CHEESE_POPUPS = [
   {step: 5, text: defaultCheeseTip, duration: CHEESE_TIP_DURATION},
   {step: 28, text: defaultCheeseTip, duration: CHEESE_TIP_DURATION},
@@ -388,8 +389,8 @@ const pendingCheesePopups = [];
 let audioContext, musicGain, effectsGain, outfitRewardBuffer, outfitRewardSource;
 let rewardGlowStarted = -Infinity;
 let wingLifeAvailable = false;
-let wingUsed = false;
 let wingRescue = null;
+let wingRecoveryUntil = 0;
 let lastSafePlatform = null;
 
 function reset() {
@@ -398,8 +399,8 @@ function reset() {
   activeCheesePopup = null;
   pendingCheesePopups.length = 0;
   wingLifeAvailable = false;
-  wingUsed = false;
   wingRescue = null;
+  wingRecoveryUntil = 0;
   wingLife.hidden = true;
   cheeseBag = [];
   emmentalBag = [];
@@ -913,7 +914,7 @@ function dust(x,h,amount,color) {
 }
 
 function requestJump(direction) {
-  if (wingRescue) return;
+  if (wingRescue || elapsed < wingRecoveryUntil) return;
   unlockAudio();
   if (player.push > 0 || (!player.ground && player.coyote === 0)) {
     player.dir = direction;
@@ -1025,7 +1026,6 @@ function reachCheese(step) {
 function startWingRescue() {
   const target = lastSafePlatform;
   wingLifeAvailable = false;
-  wingUsed = true;
   wingLife.hidden = true;
   if (!platforms.includes(target)) platforms.unshift(target);
   camera = Math.min(camera, target.h - viewHeight * .43);
@@ -1049,6 +1049,7 @@ function updateWingRescue(dt) {
     player.h = wingRescue.target.h;
     player.ground = wingRescue.target;
     player.vy = player.air = player.coyote = player.buffer = 0;
+    wingRecoveryUntil = elapsed + WING_RECOVERY_DURATION;
     dust(player.x, player.h, 10, '#fff0ad');
     wingRescue = null;
   }
@@ -1061,6 +1062,7 @@ function update(dt) {
     updateWingRescue(dt);
     return;
   }
+  if (elapsed < wingRecoveryUntil) return;
   player.buffer = Math.max(0, player.buffer - dt);
   if (player.buffer > 0 && !player.push && (player.ground || player.coyote > 0)) {
     player.buffer = 0;
@@ -1207,16 +1209,19 @@ function drawCheeseNote(lines, x, y, cheeseWidth, cheeseHeight) {
 function drawMouse(now) {
   const airborne = !player.ground && !player.push;
   const stoppedAtWall = player.dir < 0 ? player.x <= EDGE : player.x >= WIDTH - EDGE;
-  const walking = mode === 'playing' && player.ground && !player.push && !stoppedAtWall;
+  const recovering = mode === 'playing' && elapsed < wingRecoveryUntil;
+  const walking = mode === 'playing' && player.ground && !player.push && !stoppedAtWall && !recovering;
   const resting = mode === 'ready' || mode === 'paused' || (player.ground && !player.push && stoppedAtWall);
-  const bounce = walking
+  const bounce = recovering
+    ? 4.5 * Math.sin((wingRecoveryUntil - elapsed) * Math.PI * 2.5) ** 2
+    : walking
     ? 2.7 * Math.sin(2 * Math.PI * player.runDistance / RUN_CYCLE_DISTANCE) ** 2
     : resting ? 1.8 * (.5 - .5 * Math.cos(now * .009)) : 0;
   const y = screenY(player.h) - bounce;
   ctx.save();
   ctx.translate(player.x,y);
   const runFrame = walking ? Math.floor(player.runDistance * WALK_FRAMES.length / RUN_CYCLE_DISTANCE) : -1;
-  const wingDrawn = (wingRescue || wingUsed) && drawWingMouse(airborne);
+  const wingDrawn = wingRescue && drawWingMouse();
   if (!wingDrawn) {
     if (best >= VEST_STEP && art.rewardMouse) {
       drawOutfitMouse(runFrame, airborne);
@@ -1232,15 +1237,13 @@ function drawMouse(now) {
   ctx.restore();
 }
 
-function drawWingMouse(airborne) {
+function drawWingMouse() {
   const pair = best >= HAT_STEP ? 2 : 0;
-  const flap = wingRescue ? Math.floor(wingRescue.time * 16) % 2 :
-    (airborne ? Math.floor(elapsed * 12) % 2 : 1);
+  const flap = Math.floor(wingRescue.time * 16) % 2;
   const frame = wingFrames[pair + flap] || wingFrames[pair + 1 - flap];
   if (!frame) return false;
-  const pixels = .18;
-  const w = frame.width * pixels;
-  const h = frame.height * pixels;
+  const h = 76;
+  const w = h * frame.width / frame.height;
   ctx.save();
   ctx.scale(-player.dir, 1);
   ctx.imageSmoothingEnabled = false;
