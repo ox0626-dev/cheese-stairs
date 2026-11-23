@@ -206,8 +206,8 @@ const MAX_GRUYERE_STEP_GAP = 108;
 const MAX_PLATFORM_SHIFT = 138;
 const STACKED_CHEDDAR_GAP = 96;
 const VANISH_START_STEP = 30;
-const CHEESE_VANISH_DELAY = 1.1;
-const CHEESE_POP_DURATION = .18;
+const CHEESE_VANISH_DELAY = .7;
+const CHEESE_POP_DURATION = .1;
 const MUSIC_START_TIME = 12;
 const CHEESE_TIP_DURATION = 2.5;
 const VEST_STEP = 20;
@@ -223,7 +223,6 @@ const CHEESE_POPUPS = [
   {step: VANISH_START_STEP, text: '30계단부터 밟은 치즈가 사라져요!', duration: CHEESE_TIP_DURATION},
   {step: VEST_STEP, text: '치즈20개 돌파! 고소한 치즈 조끼 획득', duration: OUTFIT_POPUP_DURATION},
   {step: HAT_STEP, text: '치즈50개 돌파! 흘러내리는 치즈 모자 획득', duration: OUTFIT_POPUP_DURATION},
-  {step: 70, text: '밟은거 같은데 떨어지면 안밟은거임', duration: CHEESE_TIP_DURATION},
 ];
 const OUTFIT_SPRITES = {
   vest: {stand: 0, run: [1, 2], jump: 3, push: 4},
@@ -1114,8 +1113,28 @@ function reachCheese(step) {
   updateCheeseTip();
 }
 
+function findRescuePlatform() {
+  if (lastSafePlatform && !lastSafePlatform.vanished && platforms.includes(lastSafePlatform)) {
+    return lastSafePlatform;
+  }
+  const origin = lastSafePlatform || player;
+  const candidates = platforms.filter(platform => !platform.vanished);
+  const untouched = candidates.filter(platform => platform.vanishAt === undefined);
+  const available = untouched.length ? untouched : candidates;
+  return available.reduce((closest, platform) => {
+    const distance = Math.abs(platform.h - origin.h) + Math.abs(platform.x - origin.x) * .15;
+    const closestDistance = closest &&
+      Math.abs(closest.h - origin.h) + Math.abs(closest.x - origin.x) * .15;
+    return !closest || distance < closestDistance ? platform : closest;
+  }, null);
+}
+
 function startRescue(kind) {
-  const target = lastSafePlatform;
+  const target = findRescuePlatform();
+  if (!target) {
+    setMode('fallen');
+    return;
+  }
   const wearingVest = !vestConsumed && best >= VEST_STEP;
   if (kind === 'propeller') {
     hatLifeAvailable = false;
@@ -1125,9 +1144,11 @@ function startRescue(kind) {
     vestConsumed = true;
   }
   updateBonusLives();
-  target.vanished = false;
-  target.vanishAt = undefined;
-  if (!platforms.includes(target)) platforms.unshift(target);
+  if (target.vanishAt !== undefined) {
+    const duration = kind === 'propeller' ? PROPELLER_RESCUE_DURATION : WING_RESCUE_DURATION;
+    target.vanishAt = Math.max(target.vanishAt,
+      elapsed + duration + WING_RECOVERY_DURATION + CHEESE_VANISH_DELAY);
+  }
   const targetScreenY = screenY(target.h);
   const cameraTarget = targetScreenY < viewHeight * .26 || targetScreenY > viewHeight * .68
     ? target.h - viewHeight * .43 : camera;
@@ -1158,9 +1179,11 @@ function updateRescue(dt) {
     player.x = activeRescue.target.x;
     player.h = activeRescue.target.h;
     player.ground = activeRescue.target;
+    lastSafePlatform = activeRescue.target;
     player.vy = player.air = player.coyote = player.buffer = 0;
     rescueRecoveryUntil = elapsed + WING_RECOVERY_DURATION;
     scheduleCheeseVanish(activeRescue.target, WING_RECOVERY_DURATION + CHEESE_VANISH_DELAY);
+    reachCheese(activeRescue.target.level);
     dust(player.x, player.h, 10, '#fff0ad');
     activeRescue = null;
   }
@@ -1279,8 +1302,8 @@ function update(dt) {
       !player.ground && !player.push && player.coyote === 0 && player.vy < 0 &&
       !hasReachableLanding());
   if (fallIsCertain) {
-    if (hatLifeAvailable && lastSafePlatform) startRescue('propeller');
-    else if (wingLifeAvailable && lastSafePlatform) startRescue('wing');
+    if (hatLifeAvailable) startRescue('propeller');
+    else if (wingLifeAvailable) startRescue('wing');
     else setMode('fallen');
   }
 }
