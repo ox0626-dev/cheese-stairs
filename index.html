@@ -335,7 +335,7 @@ const flights = [
     {gap:94,x:.50},
   ],
   [
-    {gap:101,x:.80},
+    {gap:22,x:.80,skipPair:true},
     {gap:74,x:.81,extra:{x:.28,below:16}},
     {gap:112,x:.50},
     {gap:88,x:.26},
@@ -588,7 +588,7 @@ function addPlatforms() {
     const gruyere = level > LAST_EMMENTAL_STEP && level <= LAST_GRUYERE_STEP;
     const maxGap = gruyere ? MAX_GRUYERE_STEP_GAP : MAX_STEP_GAP;
     const lateDifficulty = lateDifficultyAt(level);
-    lastHeight += stackedCheddar ? STACKED_CHEDDAR_GAP
+    lastHeight += stackedCheddar ? STACKED_CHEDDAR_GAP : step.skipPair ? step.gap
       : Math.min(step.gap + extraGap, maxGap) + 8 * lateDifficulty;
     addStepPlatforms(step);
     if (stepIndex === flight.length) {
