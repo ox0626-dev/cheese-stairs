@@ -128,6 +128,10 @@ writeFileSync('run402.json', JSON.stringify({
       ALTER TABLE profiles
         DROP CONSTRAINT profiles_slot_check,
         ADD CONSTRAINT profiles_slot_check CHECK (slot BETWEEN 1 AND 3);
+    ` },
+    { id: '003_reset_rankings_20261123', sql: `
+      DELETE FROM runs;
+      UPDATE profiles SET best = NULL, achieved = NULL;
     ` }
   ] },
   functions: { replace: { ranking: {
