@@ -363,7 +363,7 @@ const PLATFORM_WIDTH = 150;
 const EXTRA_PLATFORM_WIDTH = 140;
 const MIN_PLATFORM_WIDTH = 128;
 const MIN_EXTRA_PLATFORM_WIDTH = 124;
-const STACKED_CHEDDAR_WIDTH = 116;
+const STACKED_CHEDDAR_WIDTH = 128;
 const START_PLATFORM_WIDTH = 176;
 const PLATFORM_IMAGE_REACH = START_PLATFORM_WIDTH * Math.max(...CHEESE_PHOTOS.map(photo => photo.aspect));
 const CHEESES_PER_NOTE = 3;
@@ -630,8 +630,11 @@ function makeCaptionSpace(platform, neighbors) {
     const candidate = {...platform, x};
     const touching = neighbors.filter(other => cheeseImagesOverlap(candidate, other));
     if (touching.some(other => other.noteLines)) continue;
-    const adjusted = new Map(touching.map(other => [other, resizeCheese(other,
-      Math.min(other.w, 132))]));
+    const adjusted = new Map(touching.map(other => {
+      const landingWidth = other.plannedLanding === undefined ? 0
+        : 2 * (Math.abs(other.plannedLanding - other.x) + 1);
+      return [other, resizeCheese(other, Math.min(other.w, Math.max(132, landingWidth)))];
+    }));
     if (neighbors.some(other => cheeseImagesOverlap(candidate, adjusted.get(other) || other))) continue;
     if ([...adjusted.entries()].some(([other, resized]) =>
       neighbors.some(captioned => captioned !== other && captioned.noteLines && cheeseImagesOverlap(resized, captioned)))) continue;
@@ -692,7 +695,20 @@ function addStepPlatforms(step) {
   if (level > LAST_STARTING_CHEDDAR_STEP && level <= LAST_STACKED_CHEDDAR_STEP) {
     const main = createPlatform(openingStep.x, STACKED_CHEDDAR_WIDTH,
       lastHeight, level, STACKED_CHEDDAR);
+    if (level === 7 || level === 10) {
+      const previousLanding = layoutLandings[0];
+      const direction = previousLanding < main.x ? -1 : 1;
+      const clampSide = x => Math.max(main.w / 2, Math.min(WIDTH - main.w / 2, x));
+      let sideX = clampSide(main.x + direction * main.w * .72);
+      if (Math.abs(sideX - main.x) < main.w / 2) {
+        sideX = clampSide(main.x - direction * main.w * .72);
+      }
+      const side = createPlatform(sideX, main.w, lastHeight, level, STACKED_CHEDDAR);
+      side.extra = true;
+      platforms.push(side);
+    }
     layoutLandings = jumpLandings(layoutLandings, main.h - previous.h, main.x, main.w).slice(0, 1);
+    main.plannedLanding = layoutLandings[0];
     platforms.push(main);
     return;
   }
@@ -741,6 +757,7 @@ function addStepPlatforms(step) {
     nextLandings = jumpLandings(layoutLandings, lastHeight - previous.h, x, width);
   }
   const main = createPlatform(x, width, lastHeight, level, photo);
+  main.plannedLanding = nextLandings[0];
   const extra = step.extra;
   if (extra && photo !== STACKED_CHEDDAR &&
       (level <= VANISH_START_STEP || Math.random() >= lateDifficulty * .85)) {
