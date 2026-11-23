@@ -195,6 +195,7 @@ const SOLE_INSET = 4;
 const CAMERA_SPEED = 19;
 const MAX_CAMERA_SPEED = 40;
 const FALL_MARGIN = 95;
+const EARLY_FALL_SCREEN_RATIO = .88;
 const MAX_STEP_GAP = 112;
 const MAX_GRUYERE_STEP_GAP = 108;
 const MAX_PLATFORM_SHIFT = 138;
@@ -1151,8 +1152,11 @@ function update(dt) {
     spark.life -= dt;
   }
   sparks = sparks.filter(spark => spark.life > 0);
+  // Show the fall near the bottom of the screen before ending a run with no possible landing.
   const fallIsCertain = player.h < camera - FALL_MARGIN ||
-    (!player.ground && !player.push && player.coyote === 0 && player.vy < 0 && !hasReachableLanding());
+    (screenY(player.h) >= viewHeight * EARLY_FALL_SCREEN_RATIO &&
+      !player.ground && !player.push && player.coyote === 0 && player.vy < 0 &&
+      !hasReachableLanding());
   if (fallIsCertain) {
     if (wingLifeAvailable && lastSafePlatform) startWingRescue();
     else setMode('fallen');
