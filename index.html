@@ -194,6 +194,7 @@ const START = 170;
 const SOLE_INSET = 4;
 const CAMERA_SPEED = 19;
 const MAX_CAMERA_SPEED = 40;
+const FALL_MARGIN = 95;
 const MAX_STEP_GAP = 112;
 const MAX_GRUYERE_STEP_GAP = 108;
 const MAX_PLATFORM_SHIFT = 138;
@@ -389,6 +390,7 @@ const pendingCheesePopups = [];
 let audioContext, musicGain, effectsGain, outfitRewardBuffer, outfitRewardSource;
 let rewardGlowStarted = -Infinity;
 let wingLifeAvailable = false;
+let vestConsumed = false;
 let wingRescue = null;
 let wingRecoveryUntil = 0;
 let lastSafePlatform = null;
@@ -399,6 +401,7 @@ function reset() {
   activeCheesePopup = null;
   pendingCheesePopups.length = 0;
   wingLifeAvailable = false;
+  vestConsumed = false;
   wingRescue = null;
   wingRecoveryUntil = 0;
   wingLife.hidden = true;
@@ -1026,6 +1029,7 @@ function reachCheese(step) {
 function startWingRescue() {
   const target = lastSafePlatform;
   wingLifeAvailable = false;
+  vestConsumed = true;
   wingLife.hidden = true;
   if (!platforms.includes(target)) platforms.unshift(target);
   camera = Math.min(camera, target.h - viewHeight * .43);
@@ -1053,6 +1057,20 @@ function updateWingRescue(dt) {
     dust(player.x, player.h, 10, '#fff0ad');
     wingRescue = null;
   }
+}
+
+function hasReachableLanding() {
+  // Keep the run alive while any lower cheese is still reachable by turning in midair.
+  for (const platform of platforms) {
+    const drop = player.h - platform.h;
+    if (drop <= 0 || platform.h <= camera - FALL_MARGIN) continue;
+    const time = (player.vy + Math.sqrt(player.vy ** 2 + 2 * GRAVITY * drop)) / GRAVITY;
+    const travel = SPEED * time;
+    const halfWidth = platform.w / 2 - SOLE_INSET;
+    if (player.x - travel <= platform.x + halfWidth &&
+        player.x + travel >= platform.x - halfWidth) return true;
+  }
+  return false;
 }
 
 function update(dt) {
@@ -1133,7 +1151,9 @@ function update(dt) {
     spark.life -= dt;
   }
   sparks = sparks.filter(spark => spark.life > 0);
-  if (player.h < camera - 95) {
+  const fallIsCertain = player.h < camera - FALL_MARGIN ||
+    (!player.ground && !player.push && player.coyote === 0 && player.vy < 0 && !hasReachableLanding());
+  if (fallIsCertain) {
     if (wingLifeAvailable && lastSafePlatform) startWingRescue();
     else setMode('fallen');
   }
@@ -1223,7 +1243,11 @@ function drawMouse(now) {
   const runFrame = walking ? Math.floor(player.runDistance * WALK_FRAMES.length / RUN_CYCLE_DISTANCE) : -1;
   const wingDrawn = wingRescue && drawWingMouse();
   if (!wingDrawn) {
-    if (best >= VEST_STEP && art.rewardMouse) {
+    if (vestConsumed && best >= HAT_STEP && mode === 'playing') {
+      const progress = (elapsed - rewardGlowStarted) / REWARD_GLOW_DURATION;
+      if (progress >= 0 && progress < 1) drawRewardSunburst(progress, -70);
+    }
+    if (best >= VEST_STEP && !vestConsumed && art.rewardMouse) {
       drawOutfitMouse(runFrame, airborne);
     } else if (player.push > 0) {
       const pushing = player.push < PUSH_TIME*.65;
@@ -1233,6 +1257,7 @@ function drawMouse(now) {
     } else {
       drawRun(runFrame);
     }
+    if (vestConsumed && best >= HAT_STEP && art.rewardMouse) drawHatOnly();
   }
   ctx.restore();
 }
@@ -1255,6 +1280,21 @@ function drawWingMouse() {
   ctx.drawImage(frame.image, x, -h, w, h);
   ctx.restore();
   return true;
+}
+
+function drawHatOnly() {
+  const frame = OUTFIT_SPRITES.hatAndVest.stand;
+  const pixels = 76 / WALK_SPRITE_HEIGHT;
+  const capHeight = 155;
+  ctx.save();
+  ctx.scale(-player.dir, 1);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(art.rewardMouse,
+    frame % 3 * OUTFIT_FRAME_WIDTH, Math.floor(frame / 3) * OUTFIT_FRAME_HEIGHT,
+    OUTFIT_FRAME_WIDTH, capHeight,
+    -OUTFIT_FRAME_ANCHOR.x * pixels, -OUTFIT_FRAME_ANCHOR.y * pixels,
+    OUTFIT_FRAME_WIDTH * pixels, capHeight * pixels);
+  ctx.restore();
 }
 
 function drawOutfitMouse(runFrame, airborne) {
