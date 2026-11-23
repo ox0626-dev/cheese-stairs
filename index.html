@@ -205,6 +205,10 @@ const MAX_STEP_GAP = 112;
 const MAX_GRUYERE_STEP_GAP = 108;
 const MAX_PLATFORM_SHIFT = 138;
 const STACKED_CHEDDAR_GAP = 96;
+const SLICED_OVERLAP_GAP = 75;
+const STACKED_OVERLAP_GAP = 70;
+const STACKED_CLEAR_GAP = 106;
+const BRIE_APPROACH_GAP = 90;
 const VANISH_START_STEP = 30;
 const CHEESE_VANISH_DELAY = .7;
 const CHEESE_POP_DURATION = .1;
@@ -588,7 +592,11 @@ function addPlatforms() {
     const gruyere = level > LAST_EMMENTAL_STEP && level <= LAST_GRUYERE_STEP;
     const maxGap = gruyere ? MAX_GRUYERE_STEP_GAP : MAX_STEP_GAP;
     const lateDifficulty = lateDifficultyAt(level);
-    lastHeight += stackedCheddar ? STACKED_CHEDDAR_GAP : step.skipPair ? step.gap
+    lastHeight += level === 2 || level === 3 ? SLICED_OVERLAP_GAP
+      : stackedCheddar ? (level === 7 || level === 9 ? STACKED_OVERLAP_GAP
+        : level === 8 || level === 10 ? STACKED_CLEAR_GAP : STACKED_CHEDDAR_GAP)
+      : level >= 27 && level <= 29 ? BRIE_APPROACH_GAP
+      : step.skipPair ? step.gap
       : Math.min(step.gap + extraGap, maxGap) + 8 * lateDifficulty;
     addStepPlatforms(step);
     if (stepIndex === flight.length) {
@@ -616,14 +624,16 @@ function addPlatforms() {
 
 function addStepPlatforms(step) {
   if (level > LAST_STARTING_CHEDDAR_STEP && level <= LAST_STACKED_CHEDDAR_STEP) {
-    const x = (level % 2 === 0 ? .66 : .34) * WIDTH;
+    const x = (level === 7 || level === 9 ? .70 : level % 2 === 0 ? .66 : .34) * WIDTH;
     platforms.push(createPlatform(x, STACKED_CHEDDAR_WIDTH, lastHeight, level, STACKED_CHEDDAR));
     return;
   }
 
   const photo = nextCheesePhoto(level);
   const previousX = platforms.at(-1).x;
-  const targetX = (level === LAST_STACKED_CHEDDAR_STEP + 1 ? .47 : step.x) * WIDTH
+  const targetX = (level === 3 ? .35
+    : level === LAST_STACKED_CHEDDAR_STEP + 1 ? .47
+    : level === 27 ? .66 : level === 28 ? .47 : level === 29 ? .30 : step.x) * WIDTH
     + (Math.random() - .5) * 16;
   const x = Math.max(previousX - MAX_PLATFORM_SHIFT, Math.min(previousX + MAX_PLATFORM_SHIFT, targetX));
   const difficulty = difficultyAt(level);
