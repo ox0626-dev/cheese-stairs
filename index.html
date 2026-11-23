@@ -190,6 +190,7 @@ const EDGE = 64;
 const START = 170;
 const SOLE_INSET = 4;
 const CAMERA_SPEED = 19;
+const MAX_CAMERA_SPEED = 40;
 const MAX_STEP_GAP = 112;
 const MAX_GRUYERE_STEP_GAP = 108;
 const MAX_PLATFORM_SHIFT = 138;
@@ -328,6 +329,8 @@ let cheeseBag = [];
 let emmentalBag = [];
 const PLATFORM_WIDTH = 150;
 const EXTRA_PLATFORM_WIDTH = 140;
+const MIN_PLATFORM_WIDTH = 128;
+const MIN_EXTRA_PLATFORM_WIDTH = 124;
 const STACKED_CHEDDAR_WIDTH = 116;
 const START_PLATFORM_WIDTH = 176;
 const PLATFORM_IMAGE_REACH = START_PLATFORM_WIDTH * Math.max(...CHEESE_PHOTOS.map(photo => photo.aspect));
@@ -433,6 +436,10 @@ function shuffledCheesePhotos(photos) {
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
   return shuffled;
+}
+
+function difficultyAt(step) {
+  return 1 - Math.exp(-Math.max(0, step - VEST_STEP) / 55);
 }
 
 function createPlatform(x, w, h, level, photo = nextCheesePhoto(level)) {
@@ -555,7 +562,10 @@ function addStepPlatforms(step) {
   const targetX = (level === LAST_STACKED_CHEDDAR_STEP + 1 ? .47 : step.x) * WIDTH
     + (Math.random() - .5) * 16;
   const x = Math.max(previousX - MAX_PLATFORM_SHIFT, Math.min(previousX + MAX_PLATFORM_SHIFT, targetX));
-  const main = createPlatform(x, PLATFORM_WIDTH, lastHeight, level, photo);
+  const difficulty = difficultyAt(level);
+  const mainWidth = PLATFORM_WIDTH - (PLATFORM_WIDTH - MIN_PLATFORM_WIDTH) * difficulty;
+  const extraWidth = EXTRA_PLATFORM_WIDTH - (EXTRA_PLATFORM_WIDTH - MIN_EXTRA_PLATFORM_WIDTH) * difficulty;
+  const main = createPlatform(x, mainWidth, lastHeight, level, photo);
   const extra = step.extra;
   if (extra && photo !== STACKED_CHEDDAR) {
     const extraPhoto = nextCheesePhoto(level);
@@ -564,7 +574,7 @@ function addStepPlatforms(step) {
       cheeseBag.push(extraPhoto);
     } else {
       const extraX = Math.max(main.x - MAX_PLATFORM_SHIFT, Math.min(main.x + MAX_PLATFORM_SHIFT, extra.x * WIDTH));
-      const side = createPlatform(extraX, EXTRA_PLATFORM_WIDTH, lastHeight - extra.below, level, extraPhoto);
+      const side = createPlatform(extraX, extraWidth, lastHeight - extra.below, level, extraPhoto);
       side.extra = true;
       platforms.push(side);
     }
@@ -1047,7 +1057,8 @@ function update(dt) {
   }
 
   const target = player.h - viewHeight * .43;
-  camera = Math.max(camera + CAMERA_SPEED * dt, camera + (target - camera) * Math.min(dt * 5.5,1));
+  const scrollSpeed = CAMERA_SPEED + (MAX_CAMERA_SPEED - CAMERA_SPEED) * difficultyAt(best);
+  camera = Math.max(camera + scrollSpeed * dt, camera + (target - camera) * Math.min(dt * 5.5,1));
   addPlatforms();
   while (platforms.length && platforms[0].h < camera - 240) platforms.shift();
   for (const spark of sparks) {
