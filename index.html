@@ -37,6 +37,7 @@
   .score{background:#0d2d55df;border:1px solid #a9d7ff57;border-radius:16px;padding:8px 13px 9px;min-width:83px;box-shadow:0 5px 18px #0c2f542a}
   .score span{display:block;font-size:12px;font-weight:650;color:#d5ebff}
   .score strong{font-size:26px;line-height:1.12;color:#ffea87;font-variant-numeric:tabular-nums}
+  .wing-life{border:1px solid #ffe487a6;border-radius:13px;background:#0d2d55df;color:#ffea87;font-size:13px;font-weight:800;padding:8px 10px;white-space:nowrap}
   .actions{display:flex;gap:7px;pointer-events:auto}
   .icon{display:grid;place-items:center;border:1px solid #a9d7ff69;background:#0d2d55df;border-radius:13px;width:42px;height:42px;padding:0;font-size:21px;line-height:1}
   .icon[hidden]{display:none}
@@ -88,6 +89,7 @@
 <main id="game" aria-label="찍찍 치즈계단">
   <div class="hud">
     <div class="score"><span>최고 도달</span><strong id="score">0</strong><span>번째 치즈</span></div>
+    <div id="wingLife" class="wing-life" role="status" aria-label="치즈날개 목숨 1개 남음" hidden>🪽 ×1</div>
     <div class="actions">
       <button type="button" id="soundButton" class="icon" aria-label="소리 설정" title="소리 설정" aria-haspopup="dialog" aria-controls="soundSettings">🔊</button>
       <button type="button" id="fullscreen" class="icon" aria-label="전체 화면" title="전체 화면" hidden>⛶</button>
@@ -146,6 +148,7 @@ const game = document.querySelector('#game');
 const canvas = document.querySelector('#field');
 const ctx = canvas.getContext('2d');
 const score = document.querySelector('#score');
+const wingLife = document.querySelector('#wingLife');
 const message = document.querySelector('#message');
 const title = document.querySelector('#title');
 const description = document.querySelector('#description');
@@ -201,6 +204,7 @@ const VEST_STEP = 20;
 const REWARD_GLOW_DURATION = 1.5;
 const HAT_STEP = 50;
 const OUTFIT_POPUP_DURATION = 3.2;
+const WING_RESCUE_DURATION = 1.05;
 const CHEESE_POPUPS = [
   {step: 5, text: defaultCheeseTip, duration: CHEESE_TIP_DURATION},
   {step: 28, text: defaultCheeseTip, duration: CHEESE_TIP_DURATION},
@@ -215,6 +219,13 @@ const OUTFIT_SPRITES = {
 const OUTFIT_FRAME_WIDTH = 420;
 const OUTFIT_FRAME_HEIGHT = 352;
 const OUTFIT_FRAME_ANCHOR = {x: 252, y: 329};
+const WING_SPRITES = [
+  {src: './wing-vest-up.png', crop: [371, 1855, 662, 529]},
+  {src: './wing-vest-down.png', crop: [1380, 1828, 692, 529]},
+  {src: './wing-hat-up.png', crop: [371, 1826, 662, 558]},
+  {src: './wing-hat-down.png', crop: [1380, 1807, 692, 550]},
+];
+const wingFrames = Array(WING_SPRITES.length).fill(null);
 const CHEESE_PHOTOS = [{"aspect":0.9464,"surface":0.177,"sprite":"cheesePhoto1","rotated":false},{"aspect":0.9219,"surface":0.08,"sprite":"cheesePhoto2","rotated":false},{"aspect":0.6496,"surface":0.08,"sprite":"cheesePhoto3","rotated":false},{"aspect":0.5491,"surface":0.08,"sprite":"cheesePhoto4","rotated":false},{"aspect":0.6674,"surface":0.08,"sprite":"cheesePhoto5","rotated":false},{"aspect":0.6825,"surface":0.08,"sprite":"cheesePhoto6","rotated":false},{"aspect":0.9704,"surface":0.08,"sprite":"cheesePhoto7","rotated":false},{"aspect":0.7221,"surface":0.08,"sprite":"cheesePhoto9","rotated":false},{"aspect":0.7121,"surface":0.219,"sprite":"cheesePhoto11","rotated":false},{"aspect":0.6786,"surface":0.125,"sprite":"cheesePhoto12","rotated":true},{"aspect":0.8638,"surface":0.08,"sprite":"cheesePhoto13","rotated":false},{"aspect":0.9409,"surface":0.08,"sprite":"cheesePhoto14","rotated":false},{"aspect":0.8571,"surface":0.08,"sprite":"cheesePhoto15","rotated":false},{"aspect":0.7098,"surface":0.08,"sprite":"cheesePhoto16","rotated":false}];
 
 const STARTING_CHEDDAR = ['cheesePhoto4', 'cheesePhoto5', 'cheesePhoto6']
@@ -376,17 +387,26 @@ let activeCheesePopup = null;
 const pendingCheesePopups = [];
 let audioContext, musicGain, effectsGain, outfitRewardBuffer, outfitRewardSource;
 let rewardGlowStarted = -Infinity;
+let wingLifeAvailable = false;
+let wingUsed = false;
+let wingRescue = null;
+let lastSafePlatform = null;
 
 function reset() {
   rewardGlowStarted = -Infinity;
   cheesePopupUntil = 0;
   activeCheesePopup = null;
   pendingCheesePopups.length = 0;
+  wingLifeAvailable = false;
+  wingUsed = false;
+  wingRescue = null;
+  wingLife.hidden = true;
   cheeseBag = [];
   emmentalBag = [];
   lastCaptionLevel = -CAPTION_STEP_SPACING;
   for (const note of cheeseNotes) note.count = 0;
   const base = createPlatform(195,START_PLATFORM_WIDTH,START,0);
+  lastSafePlatform = base;
   player = {
     x:133,h:START,vy:0,dir:1,ground:base,push:0,runDistance:0,air:0,coyote:0,buffer:0,jumpDir:1,
   };
@@ -893,6 +913,7 @@ function dust(x,h,amount,color) {
 }
 
 function requestJump(direction) {
+  if (wingRescue) return;
   unlockAudio();
   if (player.push > 0 || (!player.ground && player.coyote === 0)) {
     player.dir = direction;
@@ -987,6 +1008,10 @@ function reachCheese(step) {
     if (best < popup.step && step >= popup.step) pendingCheesePopups.push(popup);
   }
   const earnedHat = best < HAT_STEP && step >= HAT_STEP;
+  if (best < VEST_STEP && step >= VEST_STEP) {
+    wingLifeAvailable = true;
+    wingLife.hidden = false;
+  }
   if (earnedHat || (best < VEST_STEP && step >= VEST_STEP)) {
     rewardGlowStarted = elapsed;
     void playOutfitReward();
@@ -997,9 +1022,45 @@ function reachCheese(step) {
   updateCheeseTip();
 }
 
+function startWingRescue() {
+  const target = lastSafePlatform;
+  wingLifeAvailable = false;
+  wingUsed = true;
+  wingLife.hidden = true;
+  if (!platforms.includes(target)) platforms.unshift(target);
+  camera = Math.min(camera, target.h - viewHeight * .43);
+  player.h = Math.min(target.h - 64, Math.max(player.h, camera + 32));
+  player.ground = null;
+  player.vy = player.push = player.coyote = player.buffer = 0;
+  wingRescue = {target, x: player.x, h: player.h, time: 0};
+  activeCheesePopup = {text: '치즈날개다!!', duration: 1.5};
+  cheesePopupUntil = elapsed + activeCheesePopup.duration;
+  updateCheeseTip();
+}
+
+function updateWingRescue(dt) {
+  wingRescue.time += dt;
+  const progress = Math.min(1, wingRescue.time / WING_RESCUE_DURATION);
+  const lift = 1 - (1 - progress) ** 3;
+  player.x = wingRescue.x + (wingRescue.target.x - wingRescue.x) * lift;
+  player.h = wingRescue.h + (wingRescue.target.h - wingRescue.h) * lift;
+  if (progress === 1) {
+    player.x = wingRescue.target.x;
+    player.h = wingRescue.target.h;
+    player.ground = wingRescue.target;
+    player.vy = player.air = player.coyote = player.buffer = 0;
+    dust(player.x, player.h, 10, '#fff0ad');
+    wingRescue = null;
+  }
+}
+
 function update(dt) {
   elapsed += dt;
   updateCheeseTip();
+  if (wingRescue) {
+    updateWingRescue(dt);
+    return;
+  }
   player.buffer = Math.max(0, player.buffer - dt);
   if (player.buffer > 0 && !player.push && (player.ground || player.coyote > 0)) {
     player.buffer = 0;
@@ -1050,6 +1111,7 @@ function update(dt) {
       if (landing) {
         player.h = landing.h;
         player.ground = landing;
+        lastSafePlatform = landing;
         player.vy = player.air = player.coyote = 0;
         dust(nextX,landing.h,5,'#fff0ad');
         reachCheese(landing.level);
@@ -1069,7 +1131,10 @@ function update(dt) {
     spark.life -= dt;
   }
   sparks = sparks.filter(spark => spark.life > 0);
-  if (player.h < camera - 95) setMode('fallen');
+  if (player.h < camera - 95) {
+    if (wingLifeAvailable && lastSafePlatform) startWingRescue();
+    else setMode('fallen');
+  }
 }
 
 function sky() {
@@ -1151,17 +1216,42 @@ function drawMouse(now) {
   ctx.save();
   ctx.translate(player.x,y);
   const runFrame = walking ? Math.floor(player.runDistance * WALK_FRAMES.length / RUN_CYCLE_DISTANCE) : -1;
-  if (best >= VEST_STEP && art.rewardMouse) {
-    drawOutfitMouse(runFrame, airborne);
-  } else if (player.push > 0) {
-    const pushing = player.push < PUSH_TIME*.65;
-    drawPose(art[pushing ? 'jumpPush':'jumpReady'], -player.dir, 0, pushing ? 1.07 : .89);
-  } else if (airborne) {
-    drawPose(art[player.vy > 480 && player.air < .11 ? 'jumpPush' : 'jumpOpen'], -player.dir, 0, 1);
-  } else {
-    drawRun(runFrame);
+  const wingDrawn = (wingRescue || wingUsed) && drawWingMouse(airborne);
+  if (!wingDrawn) {
+    if (best >= VEST_STEP && art.rewardMouse) {
+      drawOutfitMouse(runFrame, airborne);
+    } else if (player.push > 0) {
+      const pushing = player.push < PUSH_TIME*.65;
+      drawPose(art[pushing ? 'jumpPush':'jumpReady'], -player.dir, 0, pushing ? 1.07 : .89);
+    } else if (airborne) {
+      drawPose(art[player.vy > 480 && player.air < .11 ? 'jumpPush' : 'jumpOpen'], -player.dir, 0, 1);
+    } else {
+      drawRun(runFrame);
+    }
   }
   ctx.restore();
+}
+
+function drawWingMouse(airborne) {
+  const pair = best >= HAT_STEP ? 2 : 0;
+  const flap = wingRescue ? Math.floor(wingRescue.time * 16) % 2 :
+    (airborne ? Math.floor(elapsed * 12) % 2 : 1);
+  const frame = wingFrames[pair + flap] || wingFrames[pair + 1 - flap];
+  if (!frame) return false;
+  const pixels = .18;
+  const w = frame.width * pixels;
+  const h = frame.height * pixels;
+  ctx.save();
+  ctx.scale(-player.dir, 1);
+  ctx.imageSmoothingEnabled = false;
+  const progress = (elapsed - rewardGlowStarted) / REWARD_GLOW_DURATION;
+  if (mode === 'playing' && progress >= 0 && progress < 1) {
+    drawRewardSunburst(progress, best >= HAT_STEP ? -70 : -33);
+  }
+  const x = -w * .6;
+  ctx.drawImage(frame.image, x, -h, w, h);
+  ctx.restore();
+  return true;
 }
 
 function drawOutfitMouse(runFrame, airborne) {
@@ -1343,6 +1433,33 @@ for (const [name,src] of Object.entries(sources)) {
   image.onload = () => {art[name] = image;};
   image.src = src;
 }
+async function loadWingSprites() {
+  for (const [index, {src, crop}] of WING_SPRITES.entries()) {
+    const image = new Image();
+    try {
+      await new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = reject;
+        image.src = src;
+      });
+      const [sx, sy, width, height] = crop;
+      let sprite = null;
+      try {
+        if (typeof createImageBitmap === 'function') sprite = await createImageBitmap(image, ...crop);
+      } catch {}
+      if (!sprite) {
+        const buffer = document.createElement('canvas');
+        buffer.width = width;
+        buffer.height = height;
+        buffer.getContext('2d').drawImage(image, sx, sy, width, height, 0, 0, width, height);
+        sprite = buffer;
+      }
+      wingFrames[index] = {image: sprite, width, height};
+    } catch {}
+    image.onload = image.onerror = null;
+  }
+}
+void loadWingSprites();
 
 let previous = performance.now();
 let remainder = 0;
