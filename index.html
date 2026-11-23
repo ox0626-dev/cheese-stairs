@@ -89,7 +89,7 @@
 <main id="game" aria-label="찍찍 치즈계단">
   <div class="hud">
     <div class="score"><span>최고 도달</span><strong id="score">0</strong><span>번째 치즈</span></div>
-    <div id="wingLife" class="wing-life" role="status" aria-label="치즈날개 목숨 1개 남음" hidden>🪽 ×1</div>
+    <div id="wingLife" class="wing-life" role="status" aria-label="추가 목숨" hidden></div>
     <div class="actions">
       <button type="button" id="soundButton" class="icon" aria-label="소리 설정" title="소리 설정" aria-haspopup="dialog" aria-controls="soundSettings">🔊</button>
       <button type="button" id="fullscreen" class="icon" aria-label="전체 화면" title="전체 화면" hidden>⛶</button>
@@ -208,6 +208,7 @@ const HAT_STEP = 50;
 const OUTFIT_POPUP_DURATION = 3.2;
 const WING_RESCUE_DURATION = 1.05;
 const WING_RECOVERY_DURATION = 1.6;
+const PROPELLER_RESCUE_DURATION = 1.25;
 const CHEESE_POPUPS = [
   {step: 5, text: defaultCheeseTip, duration: CHEESE_TIP_DURATION},
   {step: 28, text: defaultCheeseTip, duration: CHEESE_TIP_DURATION},
@@ -229,6 +230,13 @@ const WING_SPRITES = [
   {src: './wing-hat-down.png', crop: [1380, 1807, 692, 550]},
 ];
 const wingFrames = Array(WING_SPRITES.length).fill(null);
+const PROPELLER_SPRITES = [
+  {src: './propeller-plain-a.png', crop: [925, 1465, 890, 837]},
+  {src: './propeller-plain-b.png', crop: [925, 1465, 890, 837]},
+  {src: './propeller-vest-a.png', crop: [622, 1568, 1214, 734]},
+  {src: './propeller-vest-b.png', crop: [622, 1568, 1214, 734]},
+];
+const propellerFrames = Array(PROPELLER_SPRITES.length).fill(null);
 const CHEESE_PHOTOS = [{"aspect":0.9464,"surface":0.177,"sprite":"cheesePhoto1","rotated":false},{"aspect":0.9219,"surface":0.08,"sprite":"cheesePhoto2","rotated":false},{"aspect":0.6496,"surface":0.08,"sprite":"cheesePhoto3","rotated":false},{"aspect":0.5491,"surface":0.08,"sprite":"cheesePhoto4","rotated":false},{"aspect":0.6674,"surface":0.08,"sprite":"cheesePhoto5","rotated":false},{"aspect":0.6825,"surface":0.08,"sprite":"cheesePhoto6","rotated":false},{"aspect":0.9704,"surface":0.08,"sprite":"cheesePhoto7","rotated":false},{"aspect":0.7221,"surface":0.08,"sprite":"cheesePhoto9","rotated":false},{"aspect":0.7121,"surface":0.219,"sprite":"cheesePhoto11","rotated":false},{"aspect":0.6786,"surface":0.125,"sprite":"cheesePhoto12","rotated":true},{"aspect":0.8638,"surface":0.08,"sprite":"cheesePhoto13","rotated":false},{"aspect":0.9409,"surface":0.08,"sprite":"cheesePhoto14","rotated":false},{"aspect":0.8571,"surface":0.08,"sprite":"cheesePhoto15","rotated":false},{"aspect":0.7098,"surface":0.08,"sprite":"cheesePhoto16","rotated":false}];
 
 const STARTING_CHEDDAR = ['cheesePhoto4', 'cheesePhoto5', 'cheesePhoto6']
@@ -391,10 +399,22 @@ const pendingCheesePopups = [];
 let audioContext, musicGain, effectsGain, outfitRewardBuffer, outfitRewardSource;
 let rewardGlowStarted = -Infinity;
 let wingLifeAvailable = false;
+let hatLifeAvailable = false;
 let vestConsumed = false;
-let wingRescue = null;
-let wingRecoveryUntil = 0;
+let hatConsumed = false;
+let activeRescue = null;
+let rescueRecoveryUntil = 0;
 let lastSafePlatform = null;
+
+function updateBonusLives() {
+  const lives = [];
+  if (wingLifeAvailable) lives.push('🪽 ×1');
+  if (hatLifeAvailable) lives.push('🚁 ×1');
+  wingLife.textContent = lives.join('  ');
+  wingLife.setAttribute('aria-label', [wingLifeAvailable && '치즈날개 목숨 1개 남음',
+    hatLifeAvailable && '치즈 프로펠러 목숨 1개 남음'].filter(Boolean).join(', '));
+  wingLife.hidden = lives.length === 0;
+}
 
 function reset() {
   rewardGlowStarted = -Infinity;
@@ -402,10 +422,12 @@ function reset() {
   activeCheesePopup = null;
   pendingCheesePopups.length = 0;
   wingLifeAvailable = false;
+  hatLifeAvailable = false;
   vestConsumed = false;
-  wingRescue = null;
-  wingRecoveryUntil = 0;
-  wingLife.hidden = true;
+  hatConsumed = false;
+  activeRescue = null;
+  rescueRecoveryUntil = 0;
+  updateBonusLives();
   cheeseBag = [];
   emmentalBag = [];
   lastCaptionLevel = -CAPTION_STEP_SPACING;
@@ -918,7 +940,7 @@ function dust(x,h,amount,color) {
 }
 
 function requestJump(direction) {
-  if (wingRescue || elapsed < wingRecoveryUntil) return;
+  if (activeRescue || elapsed < rescueRecoveryUntil) return;
   unlockAudio();
   if (player.push > 0 || (!player.ground && player.coyote === 0)) {
     player.dir = direction;
@@ -1015,8 +1037,9 @@ function reachCheese(step) {
   const earnedHat = best < HAT_STEP && step >= HAT_STEP;
   if (best < VEST_STEP && step >= VEST_STEP) {
     wingLifeAvailable = true;
-    wingLife.hidden = false;
   }
+  if (earnedHat) hatLifeAvailable = true;
+  updateBonusLives();
   if (earnedHat || (best < VEST_STEP && step >= VEST_STEP)) {
     rewardGlowStarted = elapsed;
     void playOutfitReward();
@@ -1027,36 +1050,43 @@ function reachCheese(step) {
   updateCheeseTip();
 }
 
-function startWingRescue() {
+function startRescue(kind) {
   const target = lastSafePlatform;
-  wingLifeAvailable = false;
-  vestConsumed = true;
-  wingLife.hidden = true;
+  const wearingVest = !vestConsumed && best >= VEST_STEP;
+  if (kind === 'propeller') {
+    hatLifeAvailable = false;
+    hatConsumed = true;
+  } else {
+    wingLifeAvailable = false;
+    vestConsumed = true;
+  }
+  updateBonusLives();
   if (!platforms.includes(target)) platforms.unshift(target);
   camera = Math.min(camera, target.h - viewHeight * .43);
   player.h = Math.min(target.h - 64, Math.max(player.h, camera + 32));
   player.ground = null;
   player.vy = player.push = player.coyote = player.buffer = 0;
-  wingRescue = {target, x: player.x, h: player.h, time: 0};
-  activeCheesePopup = {text: '치즈날개다!!', duration: 1.5};
+  activeRescue = {kind, wearingVest, target, x: player.x, h: player.h, time: 0};
+  activeCheesePopup = {text: kind === 'propeller' ? '치즈 프로펠러다!!' : '치즈날개다!!', duration: 1.5};
   cheesePopupUntil = elapsed + activeCheesePopup.duration;
   updateCheeseTip();
 }
 
-function updateWingRescue(dt) {
-  wingRescue.time += dt;
-  const progress = Math.min(1, wingRescue.time / WING_RESCUE_DURATION);
+function updateRescue(dt) {
+  activeRescue.time += dt;
+  const duration = activeRescue.kind === 'propeller' ? PROPELLER_RESCUE_DURATION : WING_RESCUE_DURATION;
+  const progress = Math.min(1, activeRescue.time / duration);
   const lift = 1 - (1 - progress) ** 3;
-  player.x = wingRescue.x + (wingRescue.target.x - wingRescue.x) * lift;
-  player.h = wingRescue.h + (wingRescue.target.h - wingRescue.h) * lift;
+  player.x = activeRescue.x + (activeRescue.target.x - activeRescue.x) * lift;
+  player.h = activeRescue.h + (activeRescue.target.h - activeRescue.h) * lift;
   if (progress === 1) {
-    player.x = wingRescue.target.x;
-    player.h = wingRescue.target.h;
-    player.ground = wingRescue.target;
+    player.x = activeRescue.target.x;
+    player.h = activeRescue.target.h;
+    player.ground = activeRescue.target;
     player.vy = player.air = player.coyote = player.buffer = 0;
-    wingRecoveryUntil = elapsed + WING_RECOVERY_DURATION;
+    rescueRecoveryUntil = elapsed + WING_RECOVERY_DURATION;
     dust(player.x, player.h, 10, '#fff0ad');
-    wingRescue = null;
+    activeRescue = null;
   }
 }
 
@@ -1077,11 +1107,11 @@ function hasReachableLanding() {
 function update(dt) {
   elapsed += dt;
   updateCheeseTip();
-  if (wingRescue) {
-    updateWingRescue(dt);
+  if (activeRescue) {
+    updateRescue(dt);
     return;
   }
-  if (elapsed < wingRecoveryUntil) return;
+  if (elapsed < rescueRecoveryUntil) return;
   player.buffer = Math.max(0, player.buffer - dt);
   if (player.buffer > 0 && !player.push && (player.ground || player.coyote > 0)) {
     player.buffer = 0;
@@ -1158,7 +1188,8 @@ function update(dt) {
       !player.ground && !player.push && player.coyote === 0 && player.vy < 0 &&
       !hasReachableLanding());
   if (fallIsCertain) {
-    if (wingLifeAvailable && lastSafePlatform) startWingRescue();
+    if (hatLifeAvailable && lastSafePlatform) startRescue('propeller');
+    else if (wingLifeAvailable && lastSafePlatform) startRescue('wing');
     else setMode('fallen');
   }
 }
@@ -1233,11 +1264,11 @@ function drawCheeseNote(lines, x, y, cheeseWidth, cheeseHeight) {
 function drawMouse(now) {
   const airborne = !player.ground && !player.push;
   const stoppedAtWall = player.dir < 0 ? player.x <= EDGE : player.x >= WIDTH - EDGE;
-  const recovering = mode === 'playing' && elapsed < wingRecoveryUntil;
+  const recovering = mode === 'playing' && elapsed < rescueRecoveryUntil;
   const walking = mode === 'playing' && player.ground && !player.push && !stoppedAtWall && !recovering;
   const resting = mode === 'ready' || mode === 'paused' || (player.ground && !player.push && stoppedAtWall);
   const bounce = recovering
-    ? 4.5 * Math.sin((wingRecoveryUntil - elapsed) * Math.PI * 2.5) ** 2
+    ? 4.5 * Math.sin((rescueRecoveryUntil - elapsed) * Math.PI * 2.5) ** 2
     : walking
     ? 2.7 * Math.sin(2 * Math.PI * player.runDistance / RUN_CYCLE_DISTANCE) ** 2
     : resting ? 1.8 * (.5 - .5 * Math.cos(now * .009)) : 0;
@@ -1245,9 +1276,9 @@ function drawMouse(now) {
   ctx.save();
   ctx.translate(player.x,y);
   const runFrame = walking ? Math.floor(player.runDistance * WALK_FRAMES.length / RUN_CYCLE_DISTANCE) : -1;
-  const wingDrawn = wingRescue && drawWingMouse();
-  if (!wingDrawn) {
-    if (vestConsumed && best >= HAT_STEP && mode === 'playing') {
+  const rescueDrawn = activeRescue && drawRescueMouse();
+  if (!rescueDrawn) {
+    if (vestConsumed && best >= HAT_STEP && !hatConsumed && mode === 'playing') {
       const progress = (elapsed - rewardGlowStarted) / REWARD_GLOW_DURATION;
       if (progress >= 0 && progress < 1) drawRewardSunburst(progress, -70);
     }
@@ -1261,14 +1292,15 @@ function drawMouse(now) {
     } else {
       drawRun(runFrame);
     }
-    if (vestConsumed && best >= HAT_STEP && art.rewardMouse) drawHatOnly();
+    if (vestConsumed && best >= HAT_STEP && !hatConsumed && art.rewardMouse) drawHatOnly();
   }
   ctx.restore();
 }
 
-function drawWingMouse() {
-  const pair = best >= HAT_STEP ? 2 : 0;
-  const flap = Math.floor(wingRescue.time * 16) % 2;
+function drawRescueMouse() {
+  if (activeRescue.kind === 'propeller') return drawPropellerMouse();
+  const pair = best >= HAT_STEP && !hatConsumed ? 2 : 0;
+  const flap = Math.floor(activeRescue.time * 16) % 2;
   const frame = wingFrames[pair + flap] || wingFrames[pair + 1 - flap];
   if (!frame) return false;
   const h = 76;
@@ -1278,10 +1310,25 @@ function drawWingMouse() {
   ctx.imageSmoothingEnabled = false;
   const progress = (elapsed - rewardGlowStarted) / REWARD_GLOW_DURATION;
   if (mode === 'playing' && progress >= 0 && progress < 1) {
-    drawRewardSunburst(progress, best >= HAT_STEP ? -70 : -33);
+    drawRewardSunburst(progress, pair ? -70 : -33);
   }
   const x = -w * .6;
   ctx.drawImage(frame.image, x, -h, w, h);
+  ctx.restore();
+  return true;
+}
+
+function drawPropellerMouse() {
+  const pair = activeRescue.wearingVest ? 2 : 0;
+  const spin = Math.floor(activeRescue.time * 20) % 2;
+  const frame = propellerFrames[pair + spin] || propellerFrames[pair + 1 - spin];
+  if (!frame) return false;
+  const h = activeRescue.wearingVest ? 109 : 124;
+  const w = h * frame.width / frame.height;
+  ctx.save();
+  ctx.scale(-player.dir, 1);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(frame.image, -w * (activeRescue.wearingVest ? .54 : .45), -h, w, h);
   ctx.restore();
   return true;
 }
@@ -1302,7 +1349,7 @@ function drawHatOnly() {
 }
 
 function drawOutfitMouse(runFrame, airborne) {
-  const wearingHat = best >= HAT_STEP;
+  const wearingHat = best >= HAT_STEP && !hatConsumed;
   const outfit = wearingHat ? OUTFIT_SPRITES.hatAndVest : OUTFIT_SPRITES.vest;
   let frame = runFrame < 0 ? outfit.stand : outfit.run[runFrame];
   let stretch = 1;
@@ -1480,8 +1527,8 @@ for (const [name,src] of Object.entries(sources)) {
   image.onload = () => {art[name] = image;};
   image.src = src;
 }
-async function loadWingSprites() {
-  for (const [index, {src, crop}] of WING_SPRITES.entries()) {
+async function loadRescueSprites(sprites, frames) {
+  for (const [index, {src, crop}] of sprites.entries()) {
     const image = new Image();
     try {
       await new Promise((resolve, reject) => {
@@ -1501,12 +1548,15 @@ async function loadWingSprites() {
         buffer.getContext('2d').drawImage(image, sx, sy, width, height, 0, 0, width, height);
         sprite = buffer;
       }
-      wingFrames[index] = {image: sprite, width, height};
+      frames[index] = {image: sprite, width, height};
     } catch {}
     image.onload = image.onerror = null;
   }
 }
-void loadWingSprites();
+void (async () => {
+  await loadRescueSprites(WING_SPRITES, wingFrames);
+  await loadRescueSprites(PROPELLER_SPRITES, propellerFrames);
+})();
 
 let previous = performance.now();
 let remainder = 0;
