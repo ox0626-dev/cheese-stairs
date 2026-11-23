@@ -1405,7 +1405,7 @@ function drawPropellerMouse() {
 
 function drawHatOnlyMouse(stretch) {
   const {x, y, w, h, anchorX, anchorY} = HAT_ONLY_SOURCE;
-  const pixels = 76 / 450;
+  const pixels = 76 / h;
   ctx.save();
   ctx.scale(-player.dir, stretch);
   ctx.imageSmoothingEnabled = false;
