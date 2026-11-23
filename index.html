@@ -228,13 +228,7 @@ const OUTFIT_SPRITES = {
 const OUTFIT_FRAME_WIDTH = 420;
 const OUTFIT_FRAME_HEIGHT = 352;
 const OUTFIT_FRAME_ANCHOR = {x: 252, y: 329};
-// Preserve the hat's hanging edge while leaving out the vest below the head.
-const HAT_ONLY_PIECES = [
-  [0, 0, OUTFIT_FRAME_WIDTH, 155],
-  [248, 155, 77, 25],
-  [258, 180, 67, 40],
-  [265, 220, 60, 20],
-];
+const HAT_ONLY_SOURCE = {x: 943, y: 2052, w: 659, h: 554, anchorX: 1340, anchorY: 2605};
 const WING_SPRITES = [
   {src: './wing-vest-up.png', crop: [371, 1855, 662, 529]},
   {src: './wing-vest-down.png', crop: [1380, 1828, 692, 529]},
@@ -1345,7 +1339,9 @@ function drawMouse(now) {
       const progress = (elapsed - rewardGlowStarted) / REWARD_GLOW_DURATION;
       if (progress >= 0 && progress < 1) drawRewardSunburst(progress, -70);
     }
-    if (best >= VEST_STEP && !vestConsumed && art.rewardMouse) {
+    if (vestConsumed && best >= HAT_STEP && !hatConsumed && art.hatOnlyMouse) {
+      drawHatOnlyMouse(player.push > 0 ? .94 : 1);
+    } else if (best >= VEST_STEP && !vestConsumed && art.rewardMouse) {
       drawOutfitMouse(runFrame, airborne);
     } else if (player.push > 0) {
       const pushing = player.push < PUSH_TIME*.65;
@@ -1355,7 +1351,6 @@ function drawMouse(now) {
     } else {
       drawRun(runFrame);
     }
-    if (vestConsumed && best >= HAT_STEP && !hatConsumed && art.rewardMouse) drawHatOnly();
   }
   ctx.restore();
 }
@@ -1405,19 +1400,14 @@ function drawPropellerMouse() {
   return true;
 }
 
-function drawHatOnly() {
-  const frame = OUTFIT_SPRITES.hatAndVest.stand;
-  const pixels = 76 / WALK_SPRITE_HEIGHT;
-  const frameX = frame % 3 * OUTFIT_FRAME_WIDTH;
-  const frameY = Math.floor(frame / 3) * OUTFIT_FRAME_HEIGHT;
+function drawHatOnlyMouse(stretch) {
+  const {x, y, w, h, anchorX, anchorY} = HAT_ONLY_SOURCE;
+  const pixels = 76 / 450;
   ctx.save();
-  ctx.scale(-player.dir, 1);
+  ctx.scale(-player.dir, stretch);
   ctx.imageSmoothingEnabled = false;
-  for (const [x, y, w, h] of HAT_ONLY_PIECES) {
-    ctx.drawImage(art.rewardMouse, frameX + x, frameY + y, w, h,
-      (x - OUTFIT_FRAME_ANCHOR.x) * pixels, (y - OUTFIT_FRAME_ANCHOR.y) * pixels,
-      w * pixels, h * pixels);
-  }
+  ctx.drawImage(art.hatOnlyMouse, x, y, w, h,
+    (x - anchorX) * pixels, (y - anchorY) * pixels, w * pixels, h * pixels);
   ctx.restore();
 }
 
@@ -1593,6 +1583,7 @@ sources.walk = './assets/walk.png';
 sources.walkStepA = './assets/walkStepA.png';
 sources.walkStepB = './assets/walkStepB.png';
 sources.rewardMouse = './reward-mouse.png?v=76';
+sources.hatOnlyMouse = './hat-only-mouse.png?v=91';
 sources.vestReward = './vest-reward.mp3';
 for (const [name,src] of Object.entries(sources)) {
   if (name === 'vestReward') continue;
