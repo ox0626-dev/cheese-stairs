@@ -132,6 +132,10 @@ writeFileSync('run402.json', JSON.stringify({
     { id: '003_reset_rankings_20261123', sql: `
       DELETE FROM runs;
       UPDATE profiles SET best = NULL, achieved = NULL;
+    ` },
+    { id: '004_reset_nicknames_20261123', sql: `
+      DELETE FROM runs;
+      DELETE FROM profiles;
     ` }
   ] },
   functions: { replace: { ranking: {
