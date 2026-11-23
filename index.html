@@ -360,15 +360,17 @@ const OPENING_STEPS = {
   3: {gap:60, x:.36},
   4: {gap:100, x:.29, w:160},
   5: {gap:15, x:.73, w:176, caption:true},
-  6: {gap:105, x:.68},
-  7: {gap:70, x:.72},
-  8: {gap:106, x:.37, caption:true},
-  9: {gap:106, x:.68},
-  10: {gap:106, x:.39},
+  6: {gap:105, x:.70},
+  7: {gap:70, x:.74},
+  8: {gap:106, x:.40, caption:true},
+  9: {gap:106, x:.71},
+  10: {gap:106, x:.41},
 };
+const OPENING_GROUPS = [0, 0, 1, 1, 2, 2, 3, 3, 4, 5, 6];
 
 let width, height, scale, offset, viewHeight;
 let player, platforms, lastHeight, level, flightIndex, stepIndex, camera, best, sparks;
+let openingPositions, openingMirrored, layoutLandings;
 let cheeseBag = [];
 let emmentalBag = [];
 const PLATFORM_WIDTH = 150;
@@ -437,6 +439,65 @@ function updateBonusLives() {
   wingLife.hidden = lives.length === 0;
 }
 
+function jumpLandings(from, rise, targetX, width) {
+  const remainingSpeed = JUMP_SPEED ** 2 - 2 * GRAVITY * rise;
+  if (remainingSpeed <= 0) return [];
+  const travel = SPEED * (PUSH_TIME + (JUMP_SPEED + Math.sqrt(remainingSpeed)) / GRAVITY);
+  const halfWidth = width / 2 - SOLE_INSET + FOOT_HALF_WIDTH - 4;
+  const landings = [];
+  for (const x of from) {
+    for (const direction of [-1, 1]) {
+      const landingX = Math.max(EDGE, Math.min(WIDTH - EDGE, x + direction * travel));
+      if (Math.abs(landingX - targetX) <= halfWidth &&
+          !landings.some(other => Math.abs(other - landingX) < 1)) landings.push(landingX);
+    }
+  }
+  return landings.sort((a, b) => Math.abs(a - targetX) - Math.abs(b - targetX)).slice(0, 16);
+}
+
+function openingCanClimb(positions, mirrored) {
+  let landings = [mirrored ? WIDTH - 133 : 133];
+  for (let step = 1; step <= LAST_STACKED_CHEDDAR_STEP; step++) {
+    const target = OPENING_STEPS[step];
+    const width = target.w ?? (step <= LAST_STARTING_CHEDDAR_STEP
+      ? PLATFORM_WIDTH : STACKED_CHEDDAR_WIDTH);
+    landings = jumpLandings(landings, target.gap, positions[step], width).slice(0, 1);
+    if (!landings.length) return false;
+  }
+  const skipRise = OPENING_STEPS[5].gap + OPENING_STEPS[6].gap;
+  const skipTime = PUSH_TIME + (JUMP_SPEED + Math.sqrt(JUMP_SPEED ** 2 - 2 * GRAVITY * skipRise)) / GRAVITY;
+  return Math.abs(positions[6] - positions[4]) <=
+    SPEED * skipTime + STACKED_CHEDDAR_WIDTH / 2 - SOLE_INSET + FOOT_HALF_WIDTH - 8;
+}
+
+function randomOpeningLayout() {
+  for (let attempt = 0; attempt < 120; attempt++) {
+    const mirrored = Math.random() < .5;
+    const offsets = Array.from({length: 7}, () => (Math.random() - .5) * 24);
+    const positions = [];
+    for (let step = 1; step <= LAST_STACKED_CHEDDAR_STEP; step++) {
+      const template = OPENING_STEPS[step];
+      positions[step] = (mirrored ? 1 - template.x : template.x) * WIDTH
+        + offsets[OPENING_GROUPS[step]];
+    }
+    if (openingCanClimb(positions, mirrored)) return {positions, mirrored};
+  }
+  // Preserve a playable route even if every wider shuffle misses the landing checks.
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const mirrored = Math.random() < .5;
+    const shift = (Math.random() - .5) * 12;
+    const positions = [];
+    for (let step = 1; step <= LAST_STACKED_CHEDDAR_STEP; step++) {
+      const template = OPENING_STEPS[step];
+      positions[step] = (mirrored ? 1 - template.x : template.x) * WIDTH + shift;
+    }
+    if (openingCanClimb(positions, mirrored)) return {positions, mirrored};
+  }
+  const shift = (Math.random() - .5) * 2;
+  return {positions: Object.fromEntries(Object.entries(OPENING_STEPS)
+    .map(([step, template]) => [step, template.x * WIDTH + shift])), mirrored: false};
+}
+
 function reset() {
   rewardGlowStarted = -Infinity;
   cheesePopupUntil = 0;
@@ -453,11 +514,14 @@ function reset() {
   emmentalBag = [];
   lastCaptionLevel = -CAPTION_STEP_SPACING;
   for (const note of cheeseNotes) note.count = 0;
+  ({positions: openingPositions, mirrored: openingMirrored} = randomOpeningLayout());
   const base = createPlatform(195,START_PLATFORM_WIDTH,START,0);
   lastSafePlatform = base;
   player = {
-    x:133,h:START,vy:0,dir:1,ground:base,push:0,runDistance:0,air:0,coyote:0,buffer:0,jumpDir:1,
+    x:openingMirrored ? WIDTH - 133 : 133,h:START,vy:0,dir:openingMirrored ? -1 : 1,
+    ground:base,push:0,runDistance:0,air:0,coyote:0,buffer:0,jumpDir:openingMirrored ? -1 : 1,
   };
+  layoutLandings = [player.x];
   platforms = [base];
   lastHeight = START;
   level = flightIndex = stepIndex = best = elapsed = 0;
@@ -595,6 +659,10 @@ function makeCaptionSpace(platform, neighbors) {
 
 function addPlatforms() {
   while (lastHeight < camera + viewHeight + 2 * PLATFORM_IMAGE_REACH + 120) {
+    if (level === LAST_STACKED_CHEDDAR_STEP) {
+      flightIndex = Math.floor(Math.random() * flights.length);
+      stepIndex = 0;
+    }
     const flight = flights[flightIndex];
     const step = flight[stepIndex++];
     level += 1;
@@ -603,14 +671,16 @@ function addPlatforms() {
     const gruyere = level > LAST_EMMENTAL_STEP && level <= LAST_GRUYERE_STEP;
     const maxGap = gruyere ? MAX_GRUYERE_STEP_GAP : MAX_STEP_GAP;
     const lateDifficulty = lateDifficultyAt(level);
+    const gapVariation = openingStep ? 0 : (Math.random() - .5) * 8;
     lastHeight += openingStep ? openingStep.gap
-      : level >= 27 && level <= 29 ? BRIE_APPROACH_GAP
-      : step.skipPair ? step.gap
-      : Math.min(step.gap + extraGap, maxGap) + 8 * lateDifficulty;
+      : level >= 27 && level <= 29 ? BRIE_APPROACH_GAP + gapVariation
+      : step.skipPair ? step.gap + gapVariation
+      : Math.min(step.gap + extraGap + gapVariation, maxGap) + 8 * lateDifficulty;
     addStepPlatforms(step);
     if (stepIndex === flight.length) {
       stepIndex = 0;
-      flightIndex = (flightIndex + 1) % flights.length;
+      flightIndex = level < LAST_STACKED_CHEDDAR_STEP
+        ? (flightIndex + 1) % flights.length : Math.floor(Math.random() * flights.length);
     }
   }
   // New platforms are higher than lastHeight, but their images can extend below it.
@@ -633,25 +703,54 @@ function addPlatforms() {
 
 function addStepPlatforms(step) {
   const openingStep = OPENING_STEPS[level];
+  const previous = platforms.at(-1);
   if (level > LAST_STARTING_CHEDDAR_STEP && level <= LAST_STACKED_CHEDDAR_STEP) {
-    platforms.push(createPlatform(openingStep.x * WIDTH, STACKED_CHEDDAR_WIDTH,
-      lastHeight, level, STACKED_CHEDDAR));
+    const main = createPlatform(openingPositions[level], STACKED_CHEDDAR_WIDTH,
+      lastHeight, level, STACKED_CHEDDAR);
+    layoutLandings = jumpLandings(layoutLandings, main.h - previous.h, main.x, main.w).slice(0, 1);
+    platforms.push(main);
     return;
   }
 
   const photo = nextCheesePhoto(level);
-  const previousX = platforms.at(-1).x;
-  const targetX = (openingStep ? openingStep.x
-    : level === LAST_STACKED_CHEDDAR_STEP + 1 ? .38
-    : level === 27 ? .66 : level === 28 ? .47 : level === 29 ? .30 : step.x) * WIDTH
-    + (openingStep ? 0 : (Math.random() - .5) * 16);
-  const x = openingStep ? targetX
-    : Math.max(previousX - MAX_PLATFORM_SHIFT, Math.min(previousX + MAX_PLATFORM_SHIFT, targetX));
+  const previousX = previous.x;
+  const templateX = level === LAST_STACKED_CHEDDAR_STEP + 1 ? openingPositions[10] / WIDTH
+    : level === 27 ? .66 : level === 28 ? .47 : level === 29 ? .30 : step.x;
+  const targetX = openingStep ? openingPositions[level]
+    : templateX * WIDTH + (Math.random() - .5) * 16;
   const difficulty = difficultyAt(level);
   const lateDifficulty = lateDifficultyAt(level);
   const mainWidth = PLATFORM_WIDTH - (PLATFORM_WIDTH - MIN_PLATFORM_WIDTH) * difficulty - 14 * lateDifficulty;
   const extraWidth = EXTRA_PLATFORM_WIDTH - (EXTRA_PLATFORM_WIDTH - MIN_EXTRA_PLATFORM_WIDTH) * difficulty - 8 * lateDifficulty;
-  const main = createPlatform(x, openingStep?.w ?? mainWidth, lastHeight, level, photo);
+  const width = openingStep?.w ?? mainWidth;
+  const minX = Math.max(width / 2, previousX - MAX_PLATFORM_SHIFT);
+  const maxX = Math.min(WIDTH - width / 2, previousX + MAX_PLATFORM_SHIFT);
+  let x = openingStep ? targetX : Math.max(minX, Math.min(maxX, targetX));
+  let nextLandings = jumpLandings(layoutLandings, lastHeight - previous.h, x, width);
+  if (!openingStep && !nextLandings.length) {
+    const rise = lastHeight - previous.h;
+    const remainingSpeed = JUMP_SPEED ** 2 - 2 * GRAVITY * rise;
+    const travel = SPEED * (PUSH_TIME + (JUMP_SPEED + Math.sqrt(remainingSpeed)) / GRAVITY);
+    const choices = layoutLandings.flatMap(from => [-1, 1].map(direction =>
+      Math.max(EDGE, Math.min(WIDTH - EDGE, from + direction * travel))));
+    for (let i = choices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [choices[i], choices[j]] = [choices[j], choices[i]];
+    }
+    for (const landingX of choices) {
+      x = Math.max(minX, Math.min(maxX, landingX + (Math.random() - .5) * width * .6));
+      nextLandings = jumpLandings(layoutLandings, rise, x, width);
+      if (nextLandings.length) break;
+    }
+    if (!nextLandings.length) {
+      for (const landingX of choices) {
+        x = Math.max(minX, Math.min(maxX, landingX));
+        nextLandings = jumpLandings(layoutLandings, rise, x, width);
+        if (nextLandings.length) break;
+      }
+    }
+  }
+  const main = createPlatform(x, width, lastHeight, level, photo);
   const extra = step.extra;
   if (extra && photo !== STACKED_CHEDDAR &&
       (level <= VANISH_START_STEP || Math.random() >= lateDifficulty * .85)) {
@@ -666,6 +765,7 @@ function addStepPlatforms(step) {
       platforms.push(side);
     }
   }
+  layoutLandings = nextLandings.slice(0, 1);
   platforms.push(main);
 }
 
