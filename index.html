@@ -1180,7 +1180,9 @@ function update(dt) {
     player.runDistance = (player.runDistance + Math.abs(nextX - oldX)) % RUN_CYCLE_DISTANCE;
   }
 
+  let steppedOff = null;
   if (player.ground && !standingOn(player.ground,nextX) && !player.push) {
+    steppedOff = player.ground;
     player.ground = platforms.find(platform => platform.h === player.h && standingOn(platform,nextX)) || null;
     if (!player.ground) {
       player.coyote = .085;
@@ -1207,6 +1209,7 @@ function update(dt) {
     if (player.vy <= 0) {
       let landing = null;
       for (const platform of platforms) {
+        if (platform === steppedOff) continue;
         if (oldHeight < platform.h || player.h > platform.h) continue;
         const progress = (oldHeight - platform.h) / (oldHeight - player.h || 1);
         const crossX = oldX + (nextX - oldX) * progress;
