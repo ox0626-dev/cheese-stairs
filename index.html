@@ -1113,15 +1113,25 @@ function reachCheese(step) {
   updateCheeseTip();
 }
 
+function canJumpToUpperCheese(from, to) {
+  if (to.level <= from.level || to.vanished || to.vanishAt !== undefined) return false;
+  const rise = to.h - from.h;
+  const remainingSpeed = JUMP_SPEED ** 2 - 2 * GRAVITY * rise;
+  if (rise <= 0 || remainingSpeed <= 0) return false;
+  const flightTime = PUSH_TIME + (JUMP_SPEED + Math.sqrt(remainingSpeed)) / GRAVITY;
+  const landingHalfWidth = to.w / 2 - SOLE_INSET + FOOT_HALF_WIDTH;
+  const horizontalDistance = Math.max(0, Math.abs(to.x - from.x) - landingHalfWidth);
+  return horizontalDistance <= SPEED * flightTime - 8;
+}
+
 function findRescuePlatform() {
-  if (lastSafePlatform && !lastSafePlatform.vanished && platforms.includes(lastSafePlatform)) {
-    return lastSafePlatform;
-  }
   const origin = lastSafePlatform || player;
-  const candidates = platforms.filter(platform => !platform.vanished);
-  const untouched = candidates.filter(platform => platform.vanishAt === undefined);
-  const available = untouched.length ? untouched : candidates;
-  return available.reduce((closest, platform) => {
+  const remaining = platforms.filter(platform => !platform.vanished &&
+    (platform.vanishAt === undefined || platform.vanishAt > elapsed + CHEESE_POP_DURATION));
+  const jumpable = remaining.filter(platform => remaining.some(upper =>
+    canJumpToUpperCheese(platform, upper)));
+  if (lastSafePlatform && jumpable.includes(lastSafePlatform)) return lastSafePlatform;
+  return jumpable.reduce((closest, platform) => {
     const distance = Math.abs(platform.h - origin.h) + Math.abs(platform.x - origin.x) * .15;
     const closestDistance = closest &&
       Math.abs(closest.h - origin.h) + Math.abs(closest.x - origin.x) * .15;
