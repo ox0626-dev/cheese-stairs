@@ -205,6 +205,9 @@ const MAX_STEP_GAP = 112;
 const MAX_GRUYERE_STEP_GAP = 108;
 const MAX_PLATFORM_SHIFT = 138;
 const STACKED_CHEDDAR_GAP = 96;
+const VANISH_START_STEP = 30;
+const CHEESE_VANISH_DELAY = 1.1;
+const CHEESE_POP_DURATION = .18;
 const MUSIC_START_TIME = 12;
 const CHEESE_TIP_DURATION = 2.5;
 const VEST_STEP = 20;
@@ -217,6 +220,7 @@ const PROPELLER_RESCUE_DURATION = 1.5;
 const CHEESE_POPUPS = [
   {step: 5, text: defaultCheeseTip, duration: CHEESE_TIP_DURATION},
   {step: 28, text: defaultCheeseTip, duration: CHEESE_TIP_DURATION},
+  {step: VANISH_START_STEP, text: '30계단부터 밟은 치즈가 사라져요!', duration: CHEESE_TIP_DURATION},
   {step: VEST_STEP, text: '치즈20개 돌파! 고소한 치즈 조끼 획득', duration: OUTFIT_POPUP_DURATION},
   {step: HAT_STEP, text: '치즈50개 돌파! 흘러내리는 치즈 모자 획득', duration: OUTFIT_POPUP_DURATION},
   {step: 70, text: '밟은거 같은데 떨어지면 안밟은거임', duration: CHEESE_TIP_DURATION},
@@ -496,6 +500,10 @@ function difficultyAt(step) {
   return 1 - Math.exp(-Math.max(0, step - VEST_STEP) / 55);
 }
 
+function lateDifficultyAt(step) {
+  return 1 - Math.exp(-Math.max(0, step - VANISH_START_STEP) / 55);
+}
+
 function createPlatform(x, w, h, level, photo = nextCheesePhoto(level)) {
   const center = Math.max(w / 2, Math.min(WIDTH - w / 2, x));
   const imageHeight = w * photo.aspect;
@@ -580,7 +588,9 @@ function addPlatforms() {
     const extraGap = 8 + Math.max(0, Math.min(8, level - LAST_STACKED_CHEDDAR_STEP - 1));
     const gruyere = level > LAST_EMMENTAL_STEP && level <= LAST_GRUYERE_STEP;
     const maxGap = gruyere ? MAX_GRUYERE_STEP_GAP : MAX_STEP_GAP;
-    lastHeight += stackedCheddar ? STACKED_CHEDDAR_GAP : Math.min(step.gap + extraGap, maxGap);
+    const lateDifficulty = lateDifficultyAt(level);
+    lastHeight += stackedCheddar ? STACKED_CHEDDAR_GAP
+      : Math.min(step.gap + extraGap, maxGap) + 8 * lateDifficulty;
     addStepPlatforms(step);
     if (stepIndex === flight.length) {
       stepIndex = 0;
@@ -590,11 +600,12 @@ function addPlatforms() {
   // New platforms are higher than lastHeight, but their images can extend below it.
   const settledImageTop = lastHeight - 1.5 * PLATFORM_IMAGE_REACH;
   for (const platform of platforms) {
+    if (platform.vanished) continue;
     if (platform.noteLines === undefined && platform.imageTop <= settledImageTop) {
       const group = platform.noteGroup;
       platform.noteLines = null;
       if (!group || group.shown || platform.level - lastCaptionLevel < CAPTION_STEP_SPACING) continue;
-      const neighbors = platforms.filter(other => other !== platform);
+      const neighbors = platforms.filter(other => other !== platform && !other.vanished);
       const fits = makeCaptionSpace(platform, neighbors);
       if (!fits) continue;
       platform.noteLines = group.lines;
@@ -617,11 +628,13 @@ function addStepPlatforms(step) {
     + (Math.random() - .5) * 16;
   const x = Math.max(previousX - MAX_PLATFORM_SHIFT, Math.min(previousX + MAX_PLATFORM_SHIFT, targetX));
   const difficulty = difficultyAt(level);
-  const mainWidth = PLATFORM_WIDTH - (PLATFORM_WIDTH - MIN_PLATFORM_WIDTH) * difficulty;
-  const extraWidth = EXTRA_PLATFORM_WIDTH - (EXTRA_PLATFORM_WIDTH - MIN_EXTRA_PLATFORM_WIDTH) * difficulty;
+  const lateDifficulty = lateDifficultyAt(level);
+  const mainWidth = PLATFORM_WIDTH - (PLATFORM_WIDTH - MIN_PLATFORM_WIDTH) * difficulty - 14 * lateDifficulty;
+  const extraWidth = EXTRA_PLATFORM_WIDTH - (EXTRA_PLATFORM_WIDTH - MIN_EXTRA_PLATFORM_WIDTH) * difficulty - 8 * lateDifficulty;
   const main = createPlatform(x, mainWidth, lastHeight, level, photo);
   const extra = step.extra;
-  if (extra && photo !== STACKED_CHEDDAR) {
+  if (extra && photo !== STACKED_CHEDDAR &&
+      (level <= VANISH_START_STEP || Math.random() >= lateDifficulty * .85)) {
     const extraPhoto = nextCheesePhoto(level);
     if (extraPhoto === STACKED_CHEDDAR) {
       // Save the stacked cheddar for the next step, where it can appear alone.
@@ -974,7 +987,13 @@ backgroundMusic.addEventListener('ended', () => {
 });
 
 function standingOn(platform, x) {
-  return Math.abs(x - platform.x) <= platform.w / 2 - SOLE_INSET + FOOT_HALF_WIDTH;
+  return !platform.vanished && Math.abs(x - platform.x) <= platform.w / 2 - SOLE_INSET + FOOT_HALF_WIDTH;
+}
+
+function scheduleCheeseVanish(platform, delay = CHEESE_VANISH_DELAY) {
+  if (platform.level >= VANISH_START_STEP && platform.vanishAt === undefined) {
+    platform.vanishAt = elapsed + delay;
+  }
 }
 
 function dust(x,h,amount,color) {
@@ -1106,6 +1125,8 @@ function startRescue(kind) {
     vestConsumed = true;
   }
   updateBonusLives();
+  target.vanished = false;
+  target.vanishAt = undefined;
   if (!platforms.includes(target)) platforms.unshift(target);
   const targetScreenY = screenY(target.h);
   const cameraTarget = targetScreenY < viewHeight * .26 || targetScreenY > viewHeight * .68
@@ -1139,6 +1160,7 @@ function updateRescue(dt) {
     player.ground = activeRescue.target;
     player.vy = player.air = player.coyote = player.buffer = 0;
     rescueRecoveryUntil = elapsed + WING_RECOVERY_DURATION;
+    scheduleCheeseVanish(activeRescue.target, WING_RECOVERY_DURATION + CHEESE_VANISH_DELAY);
     dust(player.x, player.h, 10, '#fff0ad');
     activeRescue = null;
   }
@@ -1147,6 +1169,7 @@ function updateRescue(dt) {
 function hasReachableLanding() {
   // Keep the run alive while any lower cheese is still reachable by turning in midair.
   for (const platform of platforms) {
+    if (platform.vanished) continue;
     const drop = player.h - platform.h;
     if (drop <= 0 || platform.h <= camera - FALL_MARGIN) continue;
     const time = (player.vy + Math.sqrt(player.vy ** 2 + 2 * GRAVITY * drop)) / GRAVITY;
@@ -1166,6 +1189,12 @@ function update(dt) {
     return;
   }
   if (elapsed < rescueRecoveryUntil) return;
+  for (const platform of platforms) {
+    if (platform.vanishAt !== undefined && elapsed >= platform.vanishAt && !platform.vanished) {
+      platform.vanished = true;
+      dust(platform.x, platform.h, 9, '#fff0ad');
+    }
+  }
   player.buffer = Math.max(0, player.buffer - dt);
   if (player.buffer > 0 && !player.push && (player.ground || player.coyote > 0)) {
     player.buffer = 0;
@@ -1225,13 +1254,15 @@ function update(dt) {
         lastSafePlatform = landing;
         player.vy = player.air = player.coyote = 0;
         dust(player.x,landing.h,5,'#fff0ad');
+        scheduleCheeseVanish(landing);
         reachCheese(landing.level);
       }
     }
   }
 
   const target = player.h - viewHeight * .43;
-  const scrollSpeed = CAMERA_SPEED + (MAX_CAMERA_SPEED - CAMERA_SPEED) * difficultyAt(best);
+  const scrollSpeed = CAMERA_SPEED + (MAX_CAMERA_SPEED - CAMERA_SPEED) * difficultyAt(best)
+    + 12 * lateDifficultyAt(best);
   camera = Math.max(camera + scrollSpeed * dt, camera + (target - camera) * Math.min(dt * 5.5,1));
   addPlatforms();
   while (platforms.length && platforms[0].h < camera - 240) platforms.shift();
@@ -1303,6 +1334,25 @@ function drawPlatform(platform) {
   } else {
     ctx.drawImage(image,x,top,platform.w,h);
   }
+}
+
+function drawPoppingPlatform(platform, draw) {
+  const progress = platform.vanishAt === undefined ? 0
+    : Math.max(0, Math.min(1,
+      (elapsed - platform.vanishAt + CHEESE_POP_DURATION) / CHEESE_POP_DURATION));
+  if (progress === 0) {
+    draw();
+    return;
+  }
+  const centerY = screenY(platform.imageTop) + platform.imageHeight / 2;
+  const size = 1 - progress * .85;
+  ctx.save();
+  ctx.globalAlpha *= 1 - progress;
+  ctx.translate(platform.x, centerY);
+  ctx.scale(size, size);
+  ctx.translate(-platform.x, -centerY);
+  draw();
+  ctx.restore();
 }
 
 function drawCheeseNote(lines, x, y, cheeseWidth, cheeseHeight) {
@@ -1507,13 +1557,17 @@ function render(now) {
   ctx.scale(scale,scale);
   const visiblePlatforms = platforms.filter(platform => {
     const y = screenY(platform.h);
-    return art[platform.photo.sprite] && y >= -170 && y <= viewHeight + 135;
+    return !platform.vanished && art[platform.photo.sprite] && y >= -170 && y <= viewHeight + 135;
   });
-  for (const platform of visiblePlatforms) drawPlatform(platform);
+  for (const platform of visiblePlatforms) {
+    drawPoppingPlatform(platform, () => drawPlatform(platform));
+  }
 
   // Draw captions after the cheese images so a neighboring cheese cannot cover them.
-  for (const {noteLines, x, w, imageTop, imageHeight} of visiblePlatforms) {
-    if (noteLines) drawCheeseNote(noteLines, x, screenY(imageTop) + imageHeight / 2, w, imageHeight);
+  for (const platform of visiblePlatforms) {
+    const {noteLines, x, w, imageTop, imageHeight} = platform;
+    if (noteLines) drawPoppingPlatform(platform,
+      () => drawCheeseNote(noteLines, x, screenY(imageTop) + imageHeight / 2, w, imageHeight));
   }
   for (const spark of sparks) {
     ctx.globalAlpha = spark.life / spark.max;
