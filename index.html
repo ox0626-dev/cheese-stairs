@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#103968">
 <title>찍찍 치즈계단</title>
 <meta property="og:type" content="website">
@@ -16,7 +16,7 @@
 <link rel="preload" as="image" href="./assets/cheesePhoto6.png">
 <style>
   *,*::before,*::after{box-sizing:border-box}
-  html,body{margin:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none;background:#103968}
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none;touch-action:manipulation;background:#103968}
   body{font-family:system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
   main{
     --game-height:var(--viewport-height,100%);
@@ -25,7 +25,7 @@
     display:grid;grid-template: auto minmax(0,1fr) auto / minmax(0,1fr);gap:8px;
     padding:calc(8px + env(safe-area-inset-top,0px)) calc(8px + env(safe-area-inset-right,0px))
       calc(10px + env(safe-area-inset-bottom,0px)) calc(8px + env(safe-area-inset-left,0px));
-    background:linear-gradient(#123965,#4086b7 50%,#a5dbe8);
+    background:linear-gradient(#123965,#4086b7 50%,#a5dbe8);touch-action:manipulation;
   }
   @supports(height:100dvh){main{--game-height:var(--viewport-height,100dvh)}}
   main[data-mode="playing"]{grid-template-rows:auto 1fr}
@@ -196,14 +196,13 @@ const tick = 1 / 120;
 const EDGE = 64;
 const START = 170;
 const SOLE_INSET = 4;
+const FOOT_HALF_WIDTH = 11;
 const CAMERA_SPEED = 19;
 const MAX_CAMERA_SPEED = 40;
 const FALL_MARGIN = 95;
 const EARLY_FALL_SCREEN_RATIO = .88;
 const MAX_STEP_GAP = 112;
-const MAX_GRUYERE_STEP_GAP = 108;
 const MAX_PLATFORM_SHIFT = 138;
-const STACKED_CHEDDAR_GAP = 96;
 const MUSIC_START_TIME = 12;
 const CHEESE_TIP_DURATION = 2.5;
 const VEST_STEP = 20;
@@ -212,7 +211,7 @@ const HAT_STEP = 50;
 const OUTFIT_POPUP_DURATION = 3.2;
 const WING_RESCUE_DURATION = 1.05;
 const WING_RECOVERY_DURATION = 1.6;
-const PROPELLER_RESCUE_DURATION = 1.25;
+const PROPELLER_RESCUE_DURATION = 1.5;
 const CHEESE_POPUPS = [
   {step: 5, text: defaultCheeseTip, duration: CHEESE_TIP_DURATION},
   {step: 28, text: defaultCheeseTip, duration: CHEESE_TIP_DURATION},
@@ -235,10 +234,10 @@ const WING_SPRITES = [
 ];
 const wingFrames = Array(WING_SPRITES.length).fill(null);
 const PROPELLER_SPRITES = [
-  {src: './propeller-plain-a.png', crop: [925, 1465, 890, 837]},
-  {src: './propeller-plain-b.png', crop: [925, 1465, 890, 837]},
-  {src: './propeller-vest-a.png', crop: [622, 1568, 1214, 734]},
-  {src: './propeller-vest-b.png', crop: [622, 1568, 1214, 734]},
+  {src: './propeller-plain-a.png', crop: [602, 1548, 1254, 774]},
+  {src: './propeller-plain-b.png', crop: [905, 1445, 930, 877]},
+  {src: './propeller-vest-a.png', crop: [905, 1445, 930, 877]},
+  {src: './propeller-vest-b.png', crop: [602, 1548, 1254, 774]},
 ];
 const propellerFrames = Array(PROPELLER_SPRITES.length).fill(null);
 const CHEESE_PHOTOS = [{"aspect":0.9464,"surface":0.177,"sprite":"cheesePhoto1","rotated":false},{"aspect":0.9219,"surface":0.08,"sprite":"cheesePhoto2","rotated":false},{"aspect":0.6496,"surface":0.08,"sprite":"cheesePhoto3","rotated":false},{"aspect":0.5491,"surface":0.08,"sprite":"cheesePhoto4","rotated":false},{"aspect":0.6674,"surface":0.08,"sprite":"cheesePhoto5","rotated":false},{"aspect":0.6825,"surface":0.08,"sprite":"cheesePhoto6","rotated":false},{"aspect":0.9704,"surface":0.08,"sprite":"cheesePhoto7","rotated":false},{"aspect":0.7221,"surface":0.08,"sprite":"cheesePhoto9","rotated":false},{"aspect":0.7121,"surface":0.219,"sprite":"cheesePhoto11","rotated":false},{"aspect":0.6786,"surface":0.125,"sprite":"cheesePhoto12","rotated":true},{"aspect":0.8638,"surface":0.08,"sprite":"cheesePhoto13","rotated":false},{"aspect":0.9409,"surface":0.08,"sprite":"cheesePhoto14","rotated":false},{"aspect":0.8571,"surface":0.08,"sprite":"cheesePhoto15","rotated":false},{"aspect":0.7098,"surface":0.08,"sprite":"cheesePhoto16","rotated":false}];
@@ -324,29 +323,29 @@ const CHEESE_TOWER_NOTE_LINES = [
 
 const flights = [
   [
-    {gap:91,x:.68},
-    {gap:98,x:.47},
-    {gap:87,x:.25},
-    {gap:94,x:.50},
+    {x:.68},
+    {x:.47},
+    {x:.25},
+    {x:.50},
   ],
   [
-    {gap:101,x:.80},
-    {gap:74,x:.81,extra:{x:.28,below:16}},
-    {gap:112,x:.50},
-    {gap:88,x:.26},
+    {x:.80},
+    {x:.81},
+    {x:.50},
+    {x:.26},
   ],
   [
-    {gap:94,x:.40},
-    {gap:103,x:.74},
-    {gap:83,x:.59,extra:{x:.21,below:13}},
-    {gap:105,x:.33},
-    {gap:87,x:.18},
+    {x:.40},
+    {x:.74},
+    {x:.59},
+    {x:.33},
+    {x:.18},
   ],
   [
-    {gap:94,x:.46},
-    {gap:100,x:.72},
-    {gap:90,x:.55,extra:{x:.16,below:11}},
-    {gap:106,x:.36},
+    {x:.46},
+    {x:.72},
+    {x:.55},
+    {x:.36},
   ],
 ];
 
@@ -355,10 +354,7 @@ let player, platforms, lastHeight, level, flightIndex, stepIndex, camera, best, 
 let cheeseBag = [];
 let emmentalBag = [];
 const PLATFORM_WIDTH = 150;
-const EXTRA_PLATFORM_WIDTH = 140;
-const MIN_PLATFORM_WIDTH = 128;
-const MIN_EXTRA_PLATFORM_WIDTH = 124;
-const STACKED_CHEDDAR_WIDTH = 116;
+const MIN_PLATFORM_WIDTH = 120;
 const START_PLATFORM_WIDTH = 176;
 const PLATFORM_IMAGE_REACH = START_PLATFORM_WIDTH * Math.max(...CHEESE_PHOTOS.map(photo => photo.aspect));
 const CHEESES_PER_NOTE = 3;
@@ -491,7 +487,7 @@ function shuffledCheesePhotos(photos) {
 }
 
 function difficultyAt(step) {
-  return 1 - Math.exp(-Math.max(0, step - VEST_STEP) / 55);
+  return 1 - Math.exp(-Math.max(0, step - 1) / 30);
 }
 
 function createPlatform(x, w, h, level, photo = nextCheesePhoto(level)) {
@@ -574,11 +570,9 @@ function addPlatforms() {
     const flight = flights[flightIndex];
     const step = flight[stepIndex++];
     level += 1;
-    const stackedCheddar = level > LAST_STARTING_CHEDDAR_STEP && level <= LAST_STACKED_CHEDDAR_STEP;
-    const extraGap = 8 + Math.max(0, Math.min(8, level - LAST_STACKED_CHEDDAR_STEP - 1));
-    const gruyere = level > LAST_EMMENTAL_STEP && level <= LAST_GRUYERE_STEP;
-    const maxGap = gruyere ? MAX_GRUYERE_STEP_GAP : MAX_STEP_GAP;
-    lastHeight += stackedCheddar ? STACKED_CHEDDAR_GAP : Math.min(step.gap + extraGap, maxGap);
+    const gap = level <= LAST_STACKED_CHEDDAR_STEP
+      ? 48 + level * 2 : Math.min(MAX_STEP_GAP, 80 + (level - 11) * .85);
+    lastHeight += gap;
     addStepPlatforms(step);
     if (stepIndex === flight.length) {
       stepIndex = 0;
@@ -605,7 +599,8 @@ function addPlatforms() {
 function addStepPlatforms(step) {
   if (level > LAST_STARTING_CHEDDAR_STEP && level <= LAST_STACKED_CHEDDAR_STEP) {
     const x = (level % 2 === 0 ? .66 : .34) * WIDTH;
-    platforms.push(createPlatform(x, STACKED_CHEDDAR_WIDTH, lastHeight, level, STACKED_CHEDDAR));
+    const width = 146 - (level - LAST_STARTING_CHEDDAR_STEP - 1);
+    platforms.push(createPlatform(x, width, lastHeight, level, STACKED_CHEDDAR));
     return;
   }
 
@@ -616,21 +611,7 @@ function addStepPlatforms(step) {
   const x = Math.max(previousX - MAX_PLATFORM_SHIFT, Math.min(previousX + MAX_PLATFORM_SHIFT, targetX));
   const difficulty = difficultyAt(level);
   const mainWidth = PLATFORM_WIDTH - (PLATFORM_WIDTH - MIN_PLATFORM_WIDTH) * difficulty;
-  const extraWidth = EXTRA_PLATFORM_WIDTH - (EXTRA_PLATFORM_WIDTH - MIN_EXTRA_PLATFORM_WIDTH) * difficulty;
   const main = createPlatform(x, mainWidth, lastHeight, level, photo);
-  const extra = step.extra;
-  if (extra && photo !== STACKED_CHEDDAR) {
-    const extraPhoto = nextCheesePhoto(level);
-    if (extraPhoto === STACKED_CHEDDAR) {
-      // Save the stacked cheddar for the next step, where it can appear alone.
-      cheeseBag.push(extraPhoto);
-    } else {
-      const extraX = Math.max(main.x - MAX_PLATFORM_SHIFT, Math.min(main.x + MAX_PLATFORM_SHIFT, extra.x * WIDTH));
-      const side = createPlatform(extraX, extraWidth, lastHeight - extra.below, level, extraPhoto);
-      side.extra = true;
-      platforms.push(side);
-    }
-  }
   platforms.push(main);
 }
 
@@ -972,7 +953,7 @@ backgroundMusic.addEventListener('ended', () => {
 });
 
 function standingOn(platform, x) {
-  return Math.abs(x - platform.x) <= platform.w / 2 - SOLE_INSET;
+  return Math.abs(x - platform.x) <= platform.w / 2 - SOLE_INSET + FOOT_HALF_WIDTH;
 }
 
 function dust(x,h,amount,color) {
@@ -1122,9 +1103,15 @@ function updateRescue(dt) {
   const duration = activeRescue.kind === 'propeller' ? PROPELLER_RESCUE_DURATION : WING_RESCUE_DURATION;
   const progress = Math.min(1, activeRescue.time / duration);
   const lift = progress * progress * (3 - 2 * progress);
-  player.x = activeRescue.x + (activeRescue.target.x - activeRescue.x) * lift;
-  player.h = activeRescue.h + (activeRescue.target.h - activeRescue.h) * lift;
-  camera = activeRescue.cameraStart + (activeRescue.cameraTarget - activeRescue.cameraStart) * lift;
+  const propeller = activeRescue.kind === 'propeller';
+  const arc = propeller ? Math.sin(Math.PI * progress) : 0;
+  const middleX = (activeRescue.x + activeRescue.target.x) / 2;
+  player.x = activeRescue.x + (activeRescue.target.x - activeRescue.x) * lift
+    + arc * (WIDTH / 2 - middleX) * .8;
+  player.h = activeRescue.h + (activeRescue.target.h - activeRescue.h) * lift + arc * 28;
+  const cameraProgress = propeller ? Math.max(0, (progress - .08) / .92) : progress;
+  const cameraLift = cameraProgress * cameraProgress * (3 - 2 * cameraProgress);
+  camera = activeRescue.cameraStart + (activeRescue.cameraTarget - activeRescue.cameraStart) * cameraLift;
   if (progress === 1) {
     player.x = activeRescue.target.x;
     player.h = activeRescue.target.h;
@@ -1143,7 +1130,7 @@ function hasReachableLanding() {
     if (drop <= 0 || platform.h <= camera - FALL_MARGIN) continue;
     const time = (player.vy + Math.sqrt(player.vy ** 2 + 2 * GRAVITY * drop)) / GRAVITY;
     const travel = SPEED * time;
-    const halfWidth = platform.w / 2 - SOLE_INSET;
+    const halfWidth = platform.w / 2 - SOLE_INSET + FOOT_HALF_WIDTH;
     if (player.x - travel <= platform.x + halfWidth &&
         player.x + travel >= platform.x - halfWidth) return true;
   }
@@ -1202,15 +1189,18 @@ function update(dt) {
         if (oldHeight < platform.h || player.h > platform.h) continue;
         const progress = (oldHeight - platform.h) / (oldHeight - player.h || 1);
         const crossX = oldX + (nextX - oldX) * progress;
-        if (standingOn(platform,crossX) && standingOn(platform,nextX) &&
+        if (standingOn(platform,crossX) &&
             (!landing || platform.h > landing.h)) landing = platform;
       }
       if (landing) {
+        const halfWidth = landing.w / 2 - SOLE_INSET + FOOT_HALF_WIDTH;
+        player.x = Math.max(EDGE, Math.min(WIDTH - EDGE,
+          Math.max(landing.x - halfWidth, Math.min(landing.x + halfWidth, nextX))));
         player.h = landing.h;
         player.ground = landing;
         lastSafePlatform = landing;
         player.vy = player.air = player.coyote = 0;
-        dust(nextX,landing.h,5,'#fff0ad');
+        dust(player.x,landing.h,5,'#fff0ad');
         reachCheese(landing.level);
       }
     }
@@ -1369,12 +1359,21 @@ function drawPropellerMouse() {
   const spin = Math.floor(activeRescue.time * 20) % 2;
   const frame = propellerFrames[pair + spin] || propellerFrames[pair + 1 - spin];
   if (!frame) return false;
-  const h = activeRescue.wearingVest ? 109 : 124;
-  const w = h * frame.width / frame.height;
+  const pixels = 76 / 510;
+  const w = frame.width * pixels;
+  const h = frame.height * pixels;
+  const x = (frame.sourceX - 1330) * pixels;
+  const y = (frame.sourceY - 2301) * pixels;
+  const left = player.dir < 0 ? player.x + x : player.x - x - w;
+  const right = left + w;
+  const visibleLeft = -offset / scale + 2;
+  const visibleRight = (width - offset) / scale - 2;
+  const shift = left < visibleLeft ? visibleLeft - left : right > visibleRight ? visibleRight - right : 0;
   ctx.save();
+  ctx.translate(shift, 0);
   ctx.scale(-player.dir, 1);
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(frame.image, -w * (activeRescue.wearingVest ? .54 : .45), -h, w, h);
+  ctx.drawImage(frame.image, x, y, w, h);
   ctx.restore();
   return true;
 }
@@ -1594,7 +1593,7 @@ async function loadRescueSprites(sprites, frames) {
         buffer.getContext('2d').drawImage(image, sx, sy, width, height, 0, 0, width, height);
         sprite = buffer;
       }
-      frames[index] = {image: sprite, width, height};
+      frames[index] = {image: sprite, width, height, sourceX: sx, sourceY: sy};
     } catch {}
     image.onload = image.onerror = null;
   }
