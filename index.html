@@ -202,7 +202,9 @@ const MAX_CAMERA_SPEED = 40;
 const FALL_MARGIN = 95;
 const EARLY_FALL_SCREEN_RATIO = .88;
 const MAX_STEP_GAP = 112;
+const MAX_GRUYERE_STEP_GAP = 108;
 const MAX_PLATFORM_SHIFT = 138;
+const STACKED_CHEDDAR_GAP = 96;
 const MUSIC_START_TIME = 12;
 const CHEESE_TIP_DURATION = 2.5;
 const VEST_STEP = 20;
@@ -226,6 +228,13 @@ const OUTFIT_SPRITES = {
 const OUTFIT_FRAME_WIDTH = 420;
 const OUTFIT_FRAME_HEIGHT = 352;
 const OUTFIT_FRAME_ANCHOR = {x: 252, y: 329};
+// Preserve the hat's hanging edge while leaving out the vest below the head.
+const HAT_ONLY_PIECES = [
+  [0, 0, OUTFIT_FRAME_WIDTH, 155],
+  [248, 155, 77, 25],
+  [258, 180, 67, 40],
+  [265, 220, 60, 20],
+];
 const WING_SPRITES = [
   {src: './wing-vest-up.png', crop: [371, 1855, 662, 529]},
   {src: './wing-vest-down.png', crop: [1380, 1828, 692, 529]},
@@ -323,29 +332,29 @@ const CHEESE_TOWER_NOTE_LINES = [
 
 const flights = [
   [
-    {x:.68},
-    {x:.47},
-    {x:.25},
-    {x:.50},
+    {gap:91,x:.68},
+    {gap:98,x:.47},
+    {gap:87,x:.25},
+    {gap:94,x:.50},
   ],
   [
-    {x:.80},
-    {x:.81},
-    {x:.50},
-    {x:.26},
+    {gap:101,x:.80},
+    {gap:74,x:.81,extra:{x:.28,below:16}},
+    {gap:112,x:.50},
+    {gap:88,x:.26},
   ],
   [
-    {x:.40},
-    {x:.74},
-    {x:.59},
-    {x:.33},
-    {x:.18},
+    {gap:94,x:.40},
+    {gap:103,x:.74},
+    {gap:83,x:.59,extra:{x:.21,below:13}},
+    {gap:105,x:.33},
+    {gap:87,x:.18},
   ],
   [
-    {x:.46},
-    {x:.72},
-    {x:.55},
-    {x:.36},
+    {gap:94,x:.46},
+    {gap:100,x:.72},
+    {gap:90,x:.55,extra:{x:.16,below:11}},
+    {gap:106,x:.36},
   ],
 ];
 
@@ -354,7 +363,10 @@ let player, platforms, lastHeight, level, flightIndex, stepIndex, camera, best, 
 let cheeseBag = [];
 let emmentalBag = [];
 const PLATFORM_WIDTH = 150;
-const MIN_PLATFORM_WIDTH = 120;
+const EXTRA_PLATFORM_WIDTH = 140;
+const MIN_PLATFORM_WIDTH = 128;
+const MIN_EXTRA_PLATFORM_WIDTH = 124;
+const STACKED_CHEDDAR_WIDTH = 116;
 const START_PLATFORM_WIDTH = 176;
 const PLATFORM_IMAGE_REACH = START_PLATFORM_WIDTH * Math.max(...CHEESE_PHOTOS.map(photo => photo.aspect));
 const CHEESES_PER_NOTE = 3;
@@ -487,7 +499,7 @@ function shuffledCheesePhotos(photos) {
 }
 
 function difficultyAt(step) {
-  return 1 - Math.exp(-Math.max(0, step - 1) / 30);
+  return 1 - Math.exp(-Math.max(0, step - VEST_STEP) / 55);
 }
 
 function createPlatform(x, w, h, level, photo = nextCheesePhoto(level)) {
@@ -570,9 +582,11 @@ function addPlatforms() {
     const flight = flights[flightIndex];
     const step = flight[stepIndex++];
     level += 1;
-    const gap = level <= LAST_STACKED_CHEDDAR_STEP
-      ? 48 + level * 2 : Math.min(MAX_STEP_GAP, 80 + (level - 11) * .85);
-    lastHeight += gap;
+    const stackedCheddar = level > LAST_STARTING_CHEDDAR_STEP && level <= LAST_STACKED_CHEDDAR_STEP;
+    const extraGap = 8 + Math.max(0, Math.min(8, level - LAST_STACKED_CHEDDAR_STEP - 1));
+    const gruyere = level > LAST_EMMENTAL_STEP && level <= LAST_GRUYERE_STEP;
+    const maxGap = gruyere ? MAX_GRUYERE_STEP_GAP : MAX_STEP_GAP;
+    lastHeight += stackedCheddar ? STACKED_CHEDDAR_GAP : Math.min(step.gap + extraGap, maxGap);
     addStepPlatforms(step);
     if (stepIndex === flight.length) {
       stepIndex = 0;
@@ -599,8 +613,7 @@ function addPlatforms() {
 function addStepPlatforms(step) {
   if (level > LAST_STARTING_CHEDDAR_STEP && level <= LAST_STACKED_CHEDDAR_STEP) {
     const x = (level % 2 === 0 ? .66 : .34) * WIDTH;
-    const width = 146 - (level - LAST_STARTING_CHEDDAR_STEP - 1);
-    platforms.push(createPlatform(x, width, lastHeight, level, STACKED_CHEDDAR));
+    platforms.push(createPlatform(x, STACKED_CHEDDAR_WIDTH, lastHeight, level, STACKED_CHEDDAR));
     return;
   }
 
@@ -611,7 +624,21 @@ function addStepPlatforms(step) {
   const x = Math.max(previousX - MAX_PLATFORM_SHIFT, Math.min(previousX + MAX_PLATFORM_SHIFT, targetX));
   const difficulty = difficultyAt(level);
   const mainWidth = PLATFORM_WIDTH - (PLATFORM_WIDTH - MIN_PLATFORM_WIDTH) * difficulty;
+  const extraWidth = EXTRA_PLATFORM_WIDTH - (EXTRA_PLATFORM_WIDTH - MIN_EXTRA_PLATFORM_WIDTH) * difficulty;
   const main = createPlatform(x, mainWidth, lastHeight, level, photo);
+  const extra = step.extra;
+  if (extra && photo !== STACKED_CHEDDAR) {
+    const extraPhoto = nextCheesePhoto(level);
+    if (extraPhoto === STACKED_CHEDDAR) {
+      // Save the stacked cheddar for the next step, where it can appear alone.
+      cheeseBag.push(extraPhoto);
+    } else {
+      const extraX = Math.max(main.x - MAX_PLATFORM_SHIFT, Math.min(main.x + MAX_PLATFORM_SHIFT, extra.x * WIDTH));
+      const side = createPlatform(extraX, extraWidth, lastHeight - extra.below, level, extraPhoto);
+      side.extra = true;
+      platforms.push(side);
+    }
+  }
   platforms.push(main);
 }
 
@@ -1381,15 +1408,16 @@ function drawPropellerMouse() {
 function drawHatOnly() {
   const frame = OUTFIT_SPRITES.hatAndVest.stand;
   const pixels = 76 / WALK_SPRITE_HEIGHT;
-  const capHeight = 155;
+  const frameX = frame % 3 * OUTFIT_FRAME_WIDTH;
+  const frameY = Math.floor(frame / 3) * OUTFIT_FRAME_HEIGHT;
   ctx.save();
   ctx.scale(-player.dir, 1);
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(art.rewardMouse,
-    frame % 3 * OUTFIT_FRAME_WIDTH, Math.floor(frame / 3) * OUTFIT_FRAME_HEIGHT,
-    OUTFIT_FRAME_WIDTH, capHeight,
-    -OUTFIT_FRAME_ANCHOR.x * pixels, -OUTFIT_FRAME_ANCHOR.y * pixels,
-    OUTFIT_FRAME_WIDTH * pixels, capHeight * pixels);
+  for (const [x, y, w, h] of HAT_ONLY_PIECES) {
+    ctx.drawImage(art.rewardMouse, frameX + x, frameY + y, w, h,
+      (x - OUTFIT_FRAME_ANCHOR.x) * pixels, (y - OUTFIT_FRAME_ANCHOR.y) * pixels,
+      w * pixels, h * pixels);
+  }
   ctx.restore();
 }
 
