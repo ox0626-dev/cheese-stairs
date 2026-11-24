@@ -1217,7 +1217,8 @@ function updateCheeseTip() {
   }
   const text = activeCheesePopup?.text ?? '';
   if (cheeseTip.textContent !== text) cheeseTip.textContent = text;
-  cheeseTip.hidden = mode !== 'playing' || !activeCheesePopup;
+  cheeseTip.hidden = mode !== 'playing' || !activeCheesePopup ||
+    (lastSafePlatform?.level === 27 && text === defaultCheeseTip);
 }
 
 function reachCheese(step) {
@@ -1256,10 +1257,9 @@ function findRescuePlatform() {
   const origin = lastSafePlatform || player;
   const remaining = platforms.filter(platform => !platform.vanished &&
     (platform.vanishAt === undefined || platform.vanishAt > elapsed + CHEESE_POP_DURATION));
-  const jumpable = remaining.filter(platform => remaining.some(upper =>
-    canJumpToUpperCheese(platform, upper)));
-  if (lastSafePlatform && jumpable.includes(lastSafePlatform)) return lastSafePlatform;
-  return jumpable.reduce((closest, platform) => {
+  const higherAndJumpable = remaining.filter(platform => platform.level > origin.level &&
+    remaining.some(upper => canJumpToUpperCheese(platform, upper)));
+  return higherAndJumpable.reduce((closest, platform) => {
     const distance = Math.abs(platform.h - origin.h) + Math.abs(platform.x - origin.x) * .15;
     const closestDistance = closest &&
       Math.abs(closest.h - origin.h) + Math.abs(closest.x - origin.x) * .15;
