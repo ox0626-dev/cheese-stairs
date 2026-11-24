@@ -14,6 +14,8 @@
 <link rel="preload" as="image" href="./assets/cheesePhoto4.png">
 <link rel="preload" as="image" href="./assets/cheesePhoto5.png">
 <link rel="preload" as="image" href="./assets/cheesePhoto6.png">
+<link rel="preload" as="image" href="./assets/encounter-00.png">
+<link rel="preload" as="image" href="./assets/encounter-01.png">
 <style>
   *,*::before,*::after{box-sizing:border-box}
   html,body{margin:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none;touch-action:manipulation;background:#103968}
@@ -214,8 +216,14 @@ const VEST_STEP = 20;
 const REWARD_GLOW_DURATION = 1.5;
 const HAT_STEP = 50;
 const OUTFIT_POPUP_DURATION = 3.2;
-const ENCOUNTER_STEPS = [55, 100];
-const ENCOUNTER_DURATION = 5.8;
+const ENCOUNTER_STEPS = [1, 100];
+const ENCOUNTER_DURATION = 7;
+const ENCOUNTER_IMAGE_SCALE = .5;
+const WALK_POSES = [
+  {x: 540, y: 2380, w: 570, h: 560},
+  {x: 1240, y: 2360, w: 580, h: 580},
+];
+const GIRLFRIEND_SCENE = {x: 430, y: 1750, w: 730, h: 700};
 const WING_RESCUE_DURATION = 1.05;
 const WING_RECOVERY_DURATION = 1.6;
 const PROPELLER_RESCUE_DURATION = 1.5;
@@ -1575,44 +1583,56 @@ function drawEncounter() {
   const startX = side < 0 ? -55 : WIDTH + 55;
   const meetX = encounter.x + side * 92;
   const smooth = value => value * value * (3 - 2 * value);
-  let x, sprite, facing = -side;
-  if (t < 1.85) {
-    const progress = smooth(Math.min(1, t / 1.85));
-    x = startX + (meetX - startX) * progress;
-    sprite = Math.floor(t * 8) % 2 ? art.girlfriendWalk : art.girlfriendIdle;
-  } else if (t < 3.75) {
-    x = meetX;
-    sprite = t < 2.15 ? art.girlfriendIdle : art.girlfriendKiss;
+  let x, sprite, source, facing = -side;
+  const walkingIn = t < 2.25;
+  const walkingOut = t >= 4.8;
+  if (walkingIn || walkingOut) {
+    const progress = walkingIn ? smooth(t / 2.25) :
+      smooth(Math.min(1, (t - 4.8) / (ENCOUNTER_DURATION - 4.8)));
+    x = walkingIn ? startX + (meetX - startX) * progress :
+      meetX + (startX - meetX) * progress;
+    facing = walkingIn ? -side : side;
+    sprite = art.encounter00;
+    source = WALK_POSES[Math.floor((walkingIn ? t : t - 4.8) * 6) % 2];
   } else {
-    facing = side;
-    const progress = smooth(Math.min(1, Math.max(0, (t - 4.05) / (ENCOUNTER_DURATION - 4.05))));
-    x = meetX + (startX - meetX) * progress;
-    sprite = t < 4.05 ? art.girlfriendTurn : art.girlfriendWalk;
+    x = meetX;
+    const scene = t < 2.55 ? 1 : t < 2.9 ? 2 : t < 3.25 ? 3 :
+      t < 3.6 ? 4 : t < 4 ? 5 : t < 4.45 ? 6 : 7;
+    sprite = art[`encounter0${scene}`];
+    source = GIRLFRIEND_SCENE;
   }
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, WIDTH, viewHeight);
   if (sprite) {
-    const height = 76;
-    const width = height * sprite.width / sprite.height;
-    const bounce = (t < 1.85 || t > 4.05) ? 2 * Math.sin(t * 24) ** 2 : 1.4 * Math.sin(t * 7) ** 2;
+    const height = 88;
+    const width = height * source.w / source.h;
+    const bottomPadding = source === GIRLFRIEND_SCENE ? 10 : 6;
     ctx.save();
-    ctx.translate(x, screenY(encounter.h) - bounce);
+    ctx.translate(x, screenY(encounter.h));
     ctx.scale(facing, 1);
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(sprite, -width * .38, -height, width, height);
+    ctx.drawImage(sprite,
+      source.x * ENCOUNTER_IMAGE_SCALE, source.y * ENCOUNTER_IMAGE_SCALE,
+      source.w * ENCOUNTER_IMAGE_SCALE, source.h * ENCOUNTER_IMAGE_SCALE,
+      -width * .43, -height + bottomPadding, width, height);
     ctx.restore();
   }
-  if (t >= 2.3 && t < 4.1) {
-    const heart = ['.##.##.', '#######', '#######', '.#####.', '..###..', '...#...'];
-    const rise = Math.min(1, (t - 2.3) / 1.6);
+  if (t >= 2.9 && t < 4.45) {
+    const effectFrame = t < 3.25 ? 3 : t < 3.6 ? 4 : t < 4 ? 5 : 6;
+    const effect = art[`encounter0${effectFrame}`];
+    if (!effect) return;
+    const heart = effectFrame >= 5;
+    const source = heart ? {x: 1075, y: 1620, w: 170, h: 270} :
+      {x: 1080, y: 1930, w: 180, h: 160};
+    const effectWidth = heart ? 32 : 28;
+    const effectHeight = effectWidth * source.h / source.w;
     ctx.save();
-    ctx.globalAlpha = Math.min(1, (t - 2.3) * 5, (4.1 - t) * 4);
-    ctx.fillStyle = '#ff7f8b';
-    const center = (encounter.x + meetX) / 2;
-    const top = screenY(encounter.h) - 107 - rise * 21;
-    heart.forEach((row, rowIndex) => {
-      [...row].forEach((pixel, column) => {
-        if (pixel === '#') ctx.fillRect(center - 14 + column * 4, top + rowIndex * 4, 4, 4);
-      });
-    });
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(effect,
+      source.x * ENCOUNTER_IMAGE_SCALE, source.y * ENCOUNTER_IMAGE_SCALE,
+      source.w * ENCOUNTER_IMAGE_SCALE, source.h * ENCOUNTER_IMAGE_SCALE,
+      (encounter.x + meetX) / 2 - effectWidth / 2,
+      screenY(encounter.h) - (heart ? 143 : 72), effectWidth, effectHeight);
     ctx.restore();
   }
 }
@@ -1888,15 +1908,28 @@ sources.walkStepA = './assets/walkStepA.png';
 sources.walkStepB = './assets/walkStepB.png';
 sources.rewardMouse = './reward-mouse.png?v=76';
 sources.hatOnlyMouse = './hat-only-mouse.png?v=91';
-sources.girlfriendIdle = './assets/girlfriend-idle.png';
-sources.girlfriendWalk = './assets/girlfriend-walk.png';
-sources.girlfriendKiss = './assets/girlfriend-kiss.png';
-sources.girlfriendTurn = './assets/girlfriend-turn.png';
+for (let frame = 0; frame <= 7; frame++) {
+  const name = `encounter0${frame}`;
+  sources[name] = `./assets/encounter-0${frame}.png`;
+}
 sources.vestReward = './vest-reward.mp3';
 for (const [name,src] of Object.entries(sources)) {
   if (name === 'vestReward') continue;
   const image = new Image();
-  image.onload = () => {art[name] = image;};
+  image.onload = () => {
+    if (name.startsWith('encounter')) {
+      const reduced = document.createElement('canvas');
+      reduced.width = image.width * ENCOUNTER_IMAGE_SCALE;
+      reduced.height = image.height * ENCOUNTER_IMAGE_SCALE;
+      const reducedContext = reduced.getContext('2d');
+      reducedContext.imageSmoothingEnabled = false;
+      reducedContext.drawImage(image, 0, 0, reduced.width, reduced.height);
+      art[name] = reduced;
+    } else {
+      art[name] = image;
+    }
+    image.onload = null;
+  };
   image.src = src;
 }
 async function loadRescueSprites(sprites, frames) {
