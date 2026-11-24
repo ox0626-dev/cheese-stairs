@@ -214,8 +214,6 @@ const VEST_STEP = 20;
 const REWARD_GLOW_DURATION = 1.5;
 const HAT_STEP = 50;
 const OUTFIT_POPUP_DURATION = 3.2;
-const ENCOUNTER_STEPS = [55, 100];
-const ENCOUNTER_DURATION = 5.8;
 const WING_RESCUE_DURATION = 1.05;
 const WING_RECOVERY_DURATION = 1.6;
 const PROPELLER_RESCUE_DURATION = 1.5;
@@ -416,7 +414,6 @@ let hatConsumed = false;
 let activeRescue = null;
 let rescueRecoveryUntil = 0;
 let lastSafePlatform = null;
-let activeEncounter = null;
 
 function updateBonusLives() {
   const lives = [];
@@ -486,7 +483,6 @@ function randomOpeningLayout() {
 }
 
 function reset() {
-  activeEncounter = null;
   rewardGlowStarted = -Infinity;
   cheesePopupUntil = 0;
   activeCheesePopup = null;
@@ -1135,7 +1131,7 @@ function dust(x,h,amount,color) {
 }
 
 function requestJump(direction) {
-  if (activeEncounter || activeRescue || elapsed < rescueRecoveryUntil) return;
+  if (activeRescue || elapsed < rescueRecoveryUntil) return;
   unlockAudio();
   if (player.push > 0 || (!player.ground && player.coyote === 0)) {
     player.dir = direction;
@@ -1226,7 +1222,6 @@ function updateCheeseTip() {
 
 function reachCheese(step) {
   if (step <= best) return;
-  const encounterStep = ENCOUNTER_STEPS.filter(milestone => best < milestone && step >= milestone).pop();
   for (const popup of CHEESE_POPUPS) {
     if (best < popup.step && step >= popup.step) pendingCheesePopups.push(popup);
   }
@@ -1243,33 +1238,7 @@ function reachCheese(step) {
   }
   best = step;
   score.textContent = String(best);
-  if (encounterStep) beginEncounter(encounterStep);
   updateCheeseTip();
-}
-
-function beginEncounter(step) {
-  const side = player.x > WIDTH / 2 ? -1 : 1;
-  activeEncounter = {step, time: 0, side, originalDir: player.dir, x: player.x, h: player.h};
-  player.dir = side;
-  player.buffer = 0;
-  if (step === 100) {
-    activeCheesePopup = {text: '100계단 돌파!', duration: ENCOUNTER_DURATION};
-    cheesePopupUntil = elapsed + ENCOUNTER_DURATION;
-  }
-}
-
-function updateEncounter(dt) {
-  const encounter = activeEncounter;
-  encounter.time = Math.min(ENCOUNTER_DURATION, encounter.time + dt);
-  if (encounter.time < ENCOUNTER_DURATION) return;
-  for (const platform of platforms) {
-    if (platform.vanishAt !== undefined) platform.vanishAt += encounter.time;
-  }
-  if (player.ground?.vanishAt !== undefined) {
-    player.ground.vanishAt = Math.max(player.ground.vanishAt, elapsed + CHEESE_VANISH_DELAY);
-  }
-  player.dir = encounter.originalDir;
-  activeEncounter = null;
 }
 
 function canJumpToUpperCheese(from, to) {
@@ -1376,10 +1345,6 @@ function hasReachableLanding() {
 function update(dt) {
   elapsed += dt;
   updateCheeseTip();
-  if (activeEncounter) {
-    updateEncounter(dt);
-    return;
-  }
   if (activeRescue) {
     updateRescue(dt);
     return;
@@ -1567,67 +1532,17 @@ function drawCheeseNote(lines, x, y, cheeseWidth, cheeseHeight) {
   ctx.restore();
 }
 
-function drawEncounter() {
-  const encounter = activeEncounter;
-  if (!encounter) return;
-  const t = encounter.time;
-  const side = encounter.side;
-  const startX = side < 0 ? -55 : WIDTH + 55;
-  const meetX = encounter.x + side * 92;
-  const smooth = value => value * value * (3 - 2 * value);
-  let x, sprite, facing = -side;
-  if (t < 1.85) {
-    const progress = smooth(Math.min(1, t / 1.85));
-    x = startX + (meetX - startX) * progress;
-    sprite = Math.floor(t * 8) % 2 ? art.girlfriendWalk : art.girlfriendIdle;
-  } else if (t < 3.75) {
-    x = meetX;
-    sprite = t < 2.15 ? art.girlfriendIdle : art.girlfriendKiss;
-  } else {
-    facing = side;
-    const progress = smooth(Math.min(1, Math.max(0, (t - 4.05) / (ENCOUNTER_DURATION - 4.05))));
-    x = meetX + (startX - meetX) * progress;
-    sprite = t < 4.05 ? art.girlfriendTurn : art.girlfriendWalk;
-  }
-  if (sprite) {
-    const height = 76;
-    const width = height * sprite.width / sprite.height;
-    const bounce = (t < 1.85 || t > 4.05) ? 2 * Math.sin(t * 24) ** 2 : 1.4 * Math.sin(t * 7) ** 2;
-    ctx.save();
-    ctx.translate(x, screenY(encounter.h) - bounce);
-    ctx.scale(facing, 1);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(sprite, -width * .38, -height, width, height);
-    ctx.restore();
-  }
-  if (t >= 2.3 && t < 4.1) {
-    const heart = ['.##.##.', '#######', '#######', '.#####.', '..###..', '...#...'];
-    const rise = Math.min(1, (t - 2.3) / 1.6);
-    ctx.save();
-    ctx.globalAlpha = Math.min(1, (t - 2.3) * 5, (4.1 - t) * 4);
-    ctx.fillStyle = '#ff7f8b';
-    const center = (encounter.x + meetX) / 2;
-    const top = screenY(encounter.h) - 107 - rise * 21;
-    heart.forEach((row, rowIndex) => {
-      [...row].forEach((pixel, column) => {
-        if (pixel === '#') ctx.fillRect(center - 14 + column * 4, top + rowIndex * 4, 4, 4);
-      });
-    });
-    ctx.restore();
-  }
-}
-
 function drawMouse(now) {
   const airborne = !player.ground && !player.push;
   const stoppedAtWall = player.dir < 0 ? player.x <= EDGE : player.x >= WIDTH - EDGE;
   const recovering = mode === 'playing' && elapsed < rescueRecoveryUntil;
-  const walking = mode === 'playing' && !activeEncounter && player.ground && !player.push && !stoppedAtWall && !recovering;
-  const resting = activeEncounter || mode === 'ready' || mode === 'paused' || (player.ground && !player.push && stoppedAtWall);
+  const walking = mode === 'playing' && player.ground && !player.push && !stoppedAtWall && !recovering;
+  const resting = mode === 'ready' || mode === 'paused' || (player.ground && !player.push && stoppedAtWall);
   const bounce = recovering
     ? 4.5 * Math.sin((rescueRecoveryUntil - elapsed) * Math.PI * 2.5) ** 2
     : walking
     ? 2.7 * Math.sin(2 * Math.PI * player.runDistance / RUN_CYCLE_DISTANCE) ** 2
-    : resting ? (activeEncounter ? 4 : 1.8) * (.5 - .5 * Math.cos(now * .009)) : 0;
+    : resting ? 1.8 * (.5 - .5 * Math.cos(now * .009)) : 0;
   const y = screenY(player.h) - bounce;
   ctx.save();
   ctx.translate(player.x,y);
@@ -1823,7 +1738,6 @@ function render(now) {
     ctx.fill();
   }
   ctx.globalAlpha = 1;
-  drawEncounter();
   drawMouse(now);
   ctx.restore();
 }
@@ -1888,10 +1802,6 @@ sources.walkStepA = './assets/walkStepA.png';
 sources.walkStepB = './assets/walkStepB.png';
 sources.rewardMouse = './reward-mouse.png?v=76';
 sources.hatOnlyMouse = './hat-only-mouse.png?v=91';
-sources.girlfriendIdle = './assets/girlfriend-idle.png';
-sources.girlfriendWalk = './assets/girlfriend-walk.png';
-sources.girlfriendKiss = './assets/girlfriend-kiss.png';
-sources.girlfriendTurn = './assets/girlfriend-turn.png';
 sources.vestReward = './vest-reward.mp3';
 for (const [name,src] of Object.entries(sources)) {
   if (name === 'vestReward') continue;
