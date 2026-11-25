@@ -10,10 +10,6 @@
 <meta property="og:title" content="찍찍 치즈계단">
 <meta name="twitter:title" content="찍찍 치즈계단">
 <meta name="cheese-ranking-api" content="https://jjikjjik-cheese-top20.run402.com/api/ranking">
-<link rel="preload" as="image" href="./assets/walk.png">
-<link rel="preload" as="image" href="./assets/cheesePhoto4.png">
-<link rel="preload" as="image" href="./assets/cheesePhoto5.png">
-<link rel="preload" as="image" href="./assets/cheesePhoto6.png">
 <style>
   *,*::before,*::after{box-sizing:border-box}
   html,body{margin:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none;touch-action:manipulation;background:#103968}
@@ -1057,6 +1053,8 @@ function startPlaying() {
     try {
       unlockAudio();
       prepareBackgroundMusic();
+      loadGameAssets();
+      loadRescueAssets();
       activeNickname = nickname;
       currentRun = '';
       const token = ++runToken;
@@ -1796,19 +1794,28 @@ window.addEventListener('resize', fitVisualViewport);
 fitVisualViewport();
 new ResizeObserver(resize).observe(canvas);
 resize();
-reset();
+// Let the nickname form paint before building platforms or loading game art.
+requestAnimationFrame(() => setTimeout(() => {
+  if (!player) reset();
+  loadGameAssets();
+}, 0));
 
-sources.walk = './assets/walk.png';
-sources.walkStepA = './assets/walkStepA.png';
-sources.walkStepB = './assets/walkStepB.png';
-sources.rewardMouse = './reward-mouse.png?v=76';
-sources.hatOnlyMouse = './hat-only-mouse.png?v=91';
-sources.vestReward = './vest-reward.mp3';
-for (const [name,src] of Object.entries(sources)) {
-  if (name === 'vestReward') continue;
-  const image = new Image();
-  image.onload = () => {art[name] = image;};
-  image.src = src;
+let gameAssetsStarted = false;
+function loadGameAssets() {
+  if (gameAssetsStarted) return;
+  gameAssetsStarted = true;
+  sources.walk = './assets/walk.png';
+  sources.walkStepA = './assets/walkStepA.png';
+  sources.walkStepB = './assets/walkStepB.png';
+  sources.rewardMouse = './reward-mouse.png?v=76';
+  sources.hatOnlyMouse = './hat-only-mouse.png?v=91';
+  sources.vestReward = './vest-reward.mp3';
+  for (const [name,src] of Object.entries(sources)) {
+    if (name === 'vestReward') continue;
+    const image = new Image();
+    image.onload = () => {art[name] = image;};
+    image.src = src;
+  }
 }
 async function loadRescueSprites(sprites, frames) {
   for (const [index, {src, crop}] of sprites.entries()) {
@@ -1836,10 +1843,15 @@ async function loadRescueSprites(sprites, frames) {
     image.onload = image.onerror = null;
   }
 }
-void (async () => {
-  await loadRescueSprites(WING_SPRITES, wingFrames);
-  await loadRescueSprites(PROPELLER_SPRITES, propellerFrames);
-})();
+let rescueAssetsStarted = false;
+function loadRescueAssets() {
+  if (rescueAssetsStarted) return;
+  rescueAssetsStarted = true;
+  void (async () => {
+    await loadRescueSprites(WING_SPRITES, wingFrames);
+    await loadRescueSprites(PROPELLER_SPRITES, propellerFrames);
+  })();
+}
 
 let previous = performance.now();
 let remainder = 0;
@@ -1855,7 +1867,7 @@ function frame(now) {
   } else {
     remainder = 0;
   }
-  render(now);
+  if (player) render(now);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
